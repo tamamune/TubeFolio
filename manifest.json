@@ -69,7 +69,9 @@
         "chapters.js",
         "content.js",
         "playerx.js",
-        "xtra.js"
+        "xtra.js",
+        "antitrans.js",
+        "speaker.js"
       ],
       "css": [
         "content.css"

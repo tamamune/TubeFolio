@@ -573,7 +573,8 @@ const TGPlayerX = (() => {
       if (!adSaved) { adSaved = { muted: vEl.muted, rate: vEl.playbackRate }; TG.log('広告', '広告を早送り'); }
       if (!vEl.muted) vEl.muted = true;
       if (vEl.playbackRate !== 16) try { vEl.playbackRate = 16; } catch { /* なし */ }
-      p.querySelector('.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, button[id^="skip-button"]')?.click();
+      const sk = p.querySelector('.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern, .ytp-ad-skip-button-container button, button[id^="skip-button"]');
+      if (sk) { sk.click(); TG.log('広告', 'スキップを押した'); }
     } else if (adSaved) {
       vEl.muted = adSaved.muted;
       vEl.playbackRate = adSaved.rate || 1;
@@ -583,6 +584,12 @@ const TGPlayerX = (() => {
   }
   document.addEventListener('playing', e => { if (e.target === video()) adFast(); }, true);
   document.addEventListener('ratechange', e => { if (e.target === video() && adSaved) adFast(); }, true);
+  // 広告中だけ 150ms ごとに見回る（tick は1秒周期で、16倍速だとスキップボタンを逃すため）
+  setInterval(() => {
+    if (!cfg.adFast) return;
+    const p = document.querySelector('#movie_player');
+    if (p && (p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting'))) adFast();
+  }, 150);
 
   // ---------- 省データ（音声中心）モード：画質を最低（144p）にして映像を隠す ----------
   let saverFor = null;

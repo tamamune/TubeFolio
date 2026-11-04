@@ -1688,7 +1688,7 @@ const TGManager = (() => {
     const chList = [...chRows.values()].map(({ name, c, keys }) => `<div class="cm-row px-chrow"><span>${esc(name)}<em class="px-em">${[c.s > 0 ? `冒頭 ${c.s}秒` : '', c.e > 0 ? `最後 ${c.e}秒` : '', c.mid ? 'サムネ：途中の画面' : ''].filter(Boolean).join('・')}</em></span>
       <button class="icon" data-act="chset-del" data-keys="${esc(keys.join('\n'))}" title="この設定を消す">✕</button></div>`).join('');
     const fopen = { on: true, type: 'new', ...((await chrome.storage.local.get('fOpen')).fOpen || {}) };
-    const px = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, adFast: true, saver: false, exact: true, tags: true, nth: true, echo: true, hoverSound: true, hoverVol: 30, hoverFast: true, feedPreview: true, shortsTime: true, sb: true, rydWarn: true, disBadge: true, wb: true, gh: true, ghYears: 2, wiki: true, out: true, outMin: 120, outCity: '', pvMode: 'old', pvScale: 0.25, colMin: 3, colMax: 7, jaOff: true, cmtName: true, seekOp: 40, frameBtn: true, alwaysProg: false, alwaysCtl: false, sfx: true, sfx_chapter: true, sfx_next: true, sfxVol: 50, ...(xr.px || {}) };
+    const px = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, adFast: true, antiTr: true, speak: false, speakRate: 1.2, speakDuck: 15, speakHide: false, saver: false, exact: true, tags: true, nth: true, echo: true, hoverSound: true, hoverVol: 30, hoverFast: true, feedPreview: true, shortsTime: true, sb: true, rydWarn: true, disBadge: true, wb: true, gh: true, ghYears: 2, wiki: true, out: true, outMin: 120, outCity: '', pvMode: 'old', pvScale: 0.25, colMin: 3, colMax: 7, jaOff: true, cmtName: true, seekOp: 40, frameBtn: true, alwaysProg: false, alwaysCtl: false, sfx: true, sfx_chapter: true, sfx_next: true, sfxVol: 50, ...(xr.px || {}) };
     const rates = xr.folderRates || {}, slp = { on: true, from: '23:00', to: '07:00', ...(xr.sleepWin || {}) };
     const pxRow = (label, key, opts) => `<div class="cm-row"><span>${label}</span><div class="cm-seg">${opts.map(([v, t]) =>
       `<button data-act="pxset" data-k="${key}" data-v="${v}" class="${String(px[key]) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</div></div>`;
@@ -1786,10 +1786,21 @@ const TGManager = (() => {
       ${pxRow('外出のすすめ', 'out', [['true', 'オン'], ['false', 'オフ']])}
       ${pxRow('視聴時間がこれを超えたら', 'outMin', [[60, '1時間'], [120, '2時間'], [180, '3時間'], [240, '4時間']])}
       <div class="cm-row"><span>場所（市区町村名）</span><input class="px-city" data-outcity="1" placeholder="空欄＝自動" value="${esc(px.outCity || '')}" style="width:180px"></div>
-      <div class="bk-h cm-h">📢 広告・通信量</div>
-      <p class="bk-note">広告が流れたら16倍速・ミュートにして一瞬で終わらせ、スキップできるときは自動で押します。省データモードは画質を最低（144p）にして映像を隠し、音声中心で見ます（⚡ ボタンからも切り替え可）。</p>
+      <div class="bk-h cm-h">📢 広告の早送り</div>
+      <p class="bk-note">広告が流れたら16倍速・ミュートにして一瞬で終わらせ、スキップできるときは自動で押します。</p>
       ${pxRow('広告の早送り', 'adFast', [['true', 'オン'], ['false', 'オフ']])}
+      <div class="bk-h cm-h">📉 省データモード</div>
+      <p class="bk-note">画質を最低（144p）にして映像を隠し、音声中心で見ます（⚡ ボタンからも切り替え可）。</p>
       ${pxRow('省データモード', 'saver', [['true', 'オン'], ['false', 'オフ']])}
+      <div class="bk-h cm-h">🌐 自動翻訳を元に戻す</div>
+      <p class="bk-note">YouTube が勝手に日本語へ翻訳した動画のタイトルを、投稿者が付けたもとの言語で表示します（一覧・検索結果・関連動画・視聴ページ）。概要欄は、翻訳されていて内容が違うときだけ「元の概要欄」を折りたたみで足します。</p>
+      ${pxRow('自動翻訳を元に戻す', 'antiTr', [['true', 'オン'], ['false', 'オフ']])}
+      <div class="bk-h cm-h">🗣 字幕の読み上げ（CaptionSpeaker）</div>
+      <p class="bk-note">画面に出ている日本語字幕を、ブラウザの音声合成で読み上げます。外国語の動画は「字」ボタンの自動日本語字幕と組み合わせるとラジオ感覚で聞けます。プレイヤーの「読」ボタンでも切り替えられます。日本語以外の字幕は読みません。</p>
+      ${pxRow('読み上げ', 'speak', [['true', 'オン'], ['false', 'オフ']])}
+      ${pxRow('読む速さ', 'speakRate', [[1, '1倍'], [1.2, '1.2倍'], [1.5, '1.5倍'], [1.8, '1.8倍'], [2, '2倍']])}
+      ${pxRow('読んでいる間の元の音量', 'speakDuck', [[0, '消す'], [15, '小さく'], [40, '半分'], [100, 'そのまま']])}
+      ${pxRow('読み上げ中の字幕', 'speakHide', [['false', '出す'], ['true', '隠す']])}
       <div class="bk-h cm-h">🔢 動画の情報</div>
       <p class="bk-note">「2年前」「1.2万回」のような丸めた表示の代わりに、タイトルの下へ正確な公開日時・再生回数を出します。概要欄の下には、投稿者が設定したタグ（検索キーワード）と、タグから見たフォルダの候補を出します。</p>
       ${pxRow('正確な日時・再生数', 'exact', [['true', '表示'], ['false', '非表示']])}

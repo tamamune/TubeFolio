@@ -996,3 +996,14 @@ html:not([dark]) #tg-plpop button { color: #0f0f0f; }
 .tg-card.tg-card-drag { opacity: .45; }
 .tg-carddrag .tg-sec:not(.tg-sec-drop) > .tg-sec-h { outline: 1px dashed rgba(62,166,255,.45); outline-offset: -2px; }
 .tg-sec.tg-sec-drop { outline: 2px solid #3ea6ff; outline-offset: 2px; border-radius: 10px; background: rgba(62,166,255,.08); }
+
+/* 自動翻訳を元に戻す：元の概要欄（折りたたみ） */
+.tg-origdesc { margin: 8px 0; padding: 8px 12px; border-radius: 12px; background: rgba(127,127,127,.12); font-size: 13px; line-height: 1.5; }
+.tg-origdesc summary { cursor: pointer; font-weight: 600; }
+.tg-origdesc div { margin-top: 8px; white-space: pre-wrap; word-break: break-word; }
+
+/* CaptionSpeaker：「読」ボタンと、読み上げ中に字幕を隠す */
+.tg-px-spk { display: inline-flex !important; align-items: center; justify-content: center; vertical-align: top; }
+.tg-px-spk span { font: 700 17px/1 "Noto Sans JP", sans-serif; color: #fff; border: 2px solid #fff; border-radius: 50%; padding: 1px 3px; }
+.tg-px-spk.on span { background: #fff; color: #000; }
+#movie_player.tg-spk-hide .ytp-caption-window-container { opacity: 0 !important; }
