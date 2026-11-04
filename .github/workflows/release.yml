@@ -1,0 +1,51 @@
+name: Release
+
+# タグ（例: v4.58.1）を push すると、拡張機能のzipを作って Releases に添付する
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: タグと manifest.json のバージョンが一致するか確認
+        run: |
+          MV=$(jq -r .version manifest.json)
+          if [ "v$MV" != "$GITHUB_REF_NAME" ]; then
+            echo "タグ($GITHUB_REF_NAME) と manifest.json の version (v$MV) が違います" >&2
+            exit 1
+          fi
+
+      - name: zip を作成（展開すると TubeFolio/ フォルダになる）
+        run: |
+          mkdir -p dist/TubeFolio
+          git ls-files -z \
+            | grep -zv -e '^\.github/' -e '^\.gitignore$' \
+            | xargs -0 -I{} cp --parents {} dist/TubeFolio/
+          (cd dist && zip -r "../TubeFolio-${GITHUB_REF_NAME}.zip" TubeFolio)
+
+      - name: リリースノートを README から作成
+        run: |
+          MINOR=$(echo "${GITHUB_REF_NAME#v}" | cut -d. -f1,2)
+          {
+            echo "## インストール / 更新"
+            echo "1. 下の \`TubeFolio-${GITHUB_REF_NAME}.zip\` をダウンロードして展開（更新時は前のフォルダに上書き）"
+            echo "2. \`chrome://extensions\` → デベロッパーモードON →「パッケージ化されていない拡張機能を読み込む」で展開した \`TubeFolio\` フォルダを選ぶ（更新時は拡張機能カードの ⟳ ボタン）"
+            echo "3. YouTube のタブを再読み込み"
+            echo
+            echo "## 更新内容 (v${MINOR} 系)"
+            awk -v h="## v${MINOR}" '$0==h{f=1;next} f&&/^## /{exit} f' README.md
+          } > notes.md
+
+      - name: Release を作成して zip を添付
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "TubeFolio-${GITHUB_REF_NAME}.zip"             --title "TubeFolio ${GITHUB_REF_NAME}"             --notes-file notes.md
