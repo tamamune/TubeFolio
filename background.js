@@ -419,34 +419,35 @@ chrome.runtime.onInstalled.addListener(async () => {
   if (keys.length) await chrome.storage.local.remove(keys);
 });
 
-// ---------- 一時的に YouTube の視聴履歴に残さない（histOff） ----------
-//   再生の記録を送る通信（/api/stats/watchtime・/api/stats/playback）を止める。TubeFolio の視聴記録も止める
+// ---------- 以前の「一時的に YouTube の視聴履歴に残さない（histOff）」の後片付け ----------
+//   履歴オフは「視聴履歴を踏まえずにホーム・おすすめを探す」機能（noHist）に変わったので、
+//   再生の記録を止めていた通信のブロックを外し、古い設定を消す
 const HIST_RULES = [9101, 9102];
-async function applyHistOff() {
-  const { histOff } = await chrome.storage.local.get('histOff');
-  const on = !!histOff?.on && (!histOff.until || histOff.until > Date.now());
-  if (histOff?.on && !on) { await chrome.storage.local.set({ histOff: { on: false } }); TG.log('履歴オフ', '時間になったので履歴を元に戻しました'); }
-  const types = ['xmlhttprequest', 'ping', 'image', 'other'];
-  await chrome.declarativeNetRequest.updateDynamicRules({
-    removeRuleIds: HIST_RULES,
-    addRules: on ? [
-      { id: HIST_RULES[0], priority: 1, action: { type: 'block' }, condition: { urlFilter: '||youtube.com/api/stats/watchtime', resourceTypes: types } },
-      { id: HIST_RULES[1], priority: 1, action: { type: 'block' }, condition: { urlFilter: '||youtube.com/api/stats/playback', resourceTypes: types } }
-    ] : []
-  });
+async function clearOldHistOff() {
+  await chrome.declarativeNetRequest.updateDynamicRules({ removeRuleIds: HIST_RULES });
   chrome.alarms.clear('tg-histoff');
-  if (on && histOff.until) chrome.alarms.create('tg-histoff', { when: histOff.until + 1000 });
+  const { histOff } = await chrome.storage.local.get('histOff');
+  if (histOff) await chrome.storage.local.remove('histOff');
 }
-chrome.storage.onChanged.addListener(ch => { if (ch.histOff) applyHistOff().catch(() => {}); });
-chrome.alarms.onAlarm.addListener(a => { if (a.name === 'tg-histoff') applyHistOff().catch(() => {}); });
-chrome.runtime.onStartup.addListener(() => applyHistOff().catch(() => {}));
-chrome.runtime.onInstalled.addListener(() => applyHistOff().catch(() => {}));
+chrome.runtime.onStartup.addListener(() => clearOldHistOff().catch(() => {}));
+chrome.runtime.onInstalled.addListener(() => clearOldHistOff().catch(() => {}));
+clearOldHistOff().catch(() => {});
 
 // ---------- Return YouTube Dislike（推定の高評価・低評価）と、翻訳（他言語で検索） ----------
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg?.type === 'ryd') {
     fetch(`https://returnyoutubedislikeapi.com/votes?videoId=${encodeURIComponent(msg.v)}`)
       .then(r => (r.ok ? r.json() : null)).then(j => reply(j ? { likes: j.likes || 0, dislikes: j.dislikes || 0, views: j.viewCount || 0 } : null)).catch(() => reply(null));
+    return true;
+  }
+  // 追加機能（xtra.js）用：決まったサイトへの GET だけ中継する
+  if (msg?.type === 'xfetch') {
+    let u;
+    try { u = new URL(msg.url); } catch { reply(null); return; }
+    const OK = ['sponsor.ajay.app', 'api.github.com', 'ja.wikipedia.org', 'api.open-meteo.com', 'geocoding-api.open-meteo.com', 'ipapi.co', 'archive.org'];
+    if (u.protocol !== 'https:' || !OK.includes(u.hostname)) { reply(null); return; }
+    fetch(u.href, { credentials: 'omit', headers: u.hostname === 'api.github.com' ? { Accept: 'application/vnd.github+json' } : {} })
+      .then(r => (r.ok ? (msg.as === 'text' ? r.text() : r.json()) : null)).then(reply, () => reply(null));
     return true;
   }
   if (msg?.type === 'translate') {

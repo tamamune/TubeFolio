@@ -40,8 +40,7 @@ function row(label, count, color, id, active, f) {
   list.appendChild(row('すべて', '', '#888', null, !activeGroup));
   TG.tree(folders).forEach(({ f }) => list.appendChild(row("　".repeat(TG.tree(folders).find(x => x.f === f)?.depth || 0) + f.name, TG.folderKeys(folders, f.id).size, f.color, f.id, activeGroup === f.id, f)));
   document.getElementById('empty').hidden = folders.length > 0;
-  document.getElementById('stats').addEventListener('click', () => { chrome.tabs.create({ url: chrome.runtime.getURL('stats.html') }); window.close(); });
-  document.getElementById('log').addEventListener('click', () => { chrome.runtime.sendMessage({ type: 'openPage', page: 'log' }); window.close(); });
+  // 視聴記録・動作ログは「⚙ 設定」の中にまとめた
   document.getElementById('manage').addEventListener('click', async () => {
     await chrome.storage.local.set({ openManager: true });
     goYouTube(false);

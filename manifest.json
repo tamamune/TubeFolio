@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TubeFolio",
-  "version": "4.36.0",
+  "version": "4.58.1",
   "description": "YouTubeの登録チャンネルをフォルダで整理。フォルダ別の新着・動画・ライブ・ショート一覧、通知、集中モード、視聴記録。",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArZ9eZ9HEFkTJX1DwJ9zyfyjRsUM0B6ae/Ptg+Pcr10wUvyMPfy6CsRxWTPUViflqOAT8HxRoRwFomBZPpOiNYDG2pJgML71sEVr9wcHXcHzi42MBenNf4+41f3MqsCd6DOg0rjUYR7qqNEhzxTnOtTRZpZaAt1VRboHtKFKnwtCuN8vhWmqrRdX0+wA08IqQW9iPA+2HdFrnEsQEqy5z4s0aU24mdFXNTtFJoY3JKc1G7tDtOOmqdLmWWwif2EzIKLZVLewY4gdEaOKbhNGDwFxuMMei4RUiJasmvvSTnyYRGZ6DIvqAA1/NwkVI4phQMn8/3caNTMQd2lbLAasC3wIDAQAB",
   "permissions": [
@@ -17,7 +17,16 @@
     "https://www.googleapis.com/*",
     "https://oauth2.googleapis.com/*",
     "https://returnyoutubedislikeapi.com/*",
-    "https://translate.googleapis.com/*"
+    "https://translate.googleapis.com/*",
+    "https://www.youtube-nocookie.com/*",
+    "https://sponsor.ajay.app/*",
+    "https://api.github.com/*",
+    "https://ja.wikipedia.org/*",
+    "https://api.open-meteo.com/*",
+    "https://geocoding-api.open-meteo.com/*",
+    "https://ipapi.co/*",
+    "https://archive.org/*",
+    "https://web.archive.org/*"
   ],
   "action": {
     "default_title": "TubeFolio",
@@ -59,7 +68,8 @@
         "comments.js",
         "chapters.js",
         "content.js",
-        "playerx.js"
+        "playerx.js",
+        "xtra.js"
       ],
       "css": [
         "content.css"
@@ -69,5 +79,33 @@
   ],
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "embedref",
+        "enabled": true,
+        "path": "embed_rules.json"
+      }
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "pv.html",
+        "pv.js"
+      ],
+      "matches": [
+        "https://www.youtube.com/*"
+      ]
+    },
+    {
+      "resources": [
+        "sounds/*.mp3"
+      ],
+      "matches": [
+        "https://www.youtube.com/*"
+      ]
+    }
+  ]
 }

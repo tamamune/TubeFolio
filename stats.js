@@ -34,8 +34,6 @@
     D.fmap = TG.folderMap(D.channels, D.folders);
     D.roots = new Map(D.folders.map(f => [f.id, TG.rootOf(D.folders, f.id)]));
     $('#ryd').checked = D.ryd;
-    $('#ythOn').checked = st.ytHistOn !== false;
-    if (st.lastHistImport && !$('#ythMsg').dataset.busy) $('#ythMsg').textContent = `最終取り込み ${when(st.lastHistImport)}`;
     document.body.classList.toggle('ryd', D.ryd);
     try { render(); $('#err')?.remove(); }
     catch (e) { showErr(e); }
@@ -239,14 +237,6 @@
     document.body.classList.toggle('ryd', D.ryd);
     await chrome.storage.local.set({ rydOn: D.ryd });
     if (D.ryd) fetchRyd(rows.slice(0, shown).map(h => h.v));
-  });
-  $('#ythOn').addEventListener('change', e => chrome.storage.local.set({ ytHistOn: e.target.checked }));
-  $('#ythNow').addEventListener('click', async () => {
-    const b = $('#ythNow'), m = $('#ythMsg');
-    b.disabled = true; m.dataset.busy = '1'; m.textContent = 'YouTubeの履歴を読み込み中…';
-    const r = await chrome.runtime.sendMessage({ type: 'tg-hist-now' }).catch(e => ({ ok: false, error: e.message }));
-    b.disabled = false; delete m.dataset.busy;
-    m.textContent = r?.ok ? `取り込みました：新しく ${r.added} 本（PCで記録済み ${r.skippedPc} 本は重複しないよう除外）` : '取り込めませんでした：' + (r?.error || '不明なエラー');
   });
   $('#clear').addEventListener('click', async () => {
     if (!confirm('視聴記録（視聴時間・見た動画の一覧）をすべて消去しますか？\n（視聴済みの表示やフォルダ設定は消えません）')) return;

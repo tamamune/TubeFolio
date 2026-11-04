@@ -6,7 +6,7 @@ const TGComments = (() => {
   const WIDTH = { narrow: 22, normal: 30, wide: 40 }; // 動画の幅に対する割合(%)
   const esc = TG.esc;
   // mode: 'cmt'＝コメント ／ 'tr'＝文字起こし（動画の再生位置に合わせて流れる）
-  let cfg = { side: 'right', speed: 2, width: 'normal', sort: 'top', end: 'hide', mode: 'cmt' };
+  let cfg = { side: 'right', speed: 2, width: 'normal', sort: 'top', end: 'hide', mode: 'cmt', tr: 'ja' }; // tr：外国語のコメントを日本語に
   let segs = null, segIdx = -1;
   let vid = null, token = null, loading = false, ctl = null, raf = 0, last = 0, hover = false, userUntil = 0, ended = false, acc = 0;
   let panel = null, list = null, btn = null, menu = null;
@@ -16,7 +16,7 @@ const TGComments = (() => {
     if (!ch.cmt) return;
     const old = cfg;
     cfg = { ...cfg, ...(ch.cmt.newValue || {}) };
-    if (old.sort !== cfg.sort || old.mode !== cfg.mode) vid = null; // 並び順・内容が変わったら取り直す
+    if (old.sort !== cfg.sort || old.mode !== cfg.mode || old.tr !== cfg.tr) vid = null; // 並び順・内容が変わったら取り直す
     if (old.end !== cfg.end) panel?.classList.remove('tg-c-done');
     sync();
   });
@@ -37,6 +37,7 @@ const TGComments = (() => {
     ensurePanel(p);
     panel.classList.toggle('tg-c-left', cfg.side === 'left');
     panel.style.setProperty('--tg-cw', WIDTH[cfg.width] + '%');
+    applyPos();
     if (v !== vid) load(v);
     if (!raf) raf = requestAnimationFrame(tick);
   }
@@ -76,8 +77,9 @@ const TGComments = (() => {
     if (panel && p.contains(panel)) return;
     panel = document.createElement('div');
     panel.className = 'tg-c-panel';
-    panel.innerHTML = '<div class="tg-c-list"><div class="tg-c-pad"></div></div>';
-    list = panel.firstElementChild;
+    panel.innerHTML = '<div class="tg-c-grip" title="ドラッグで好きな場所へ移動（ダブルクリックで元の右側／左側へ）">⠿ 移動</div><div class="tg-c-list"><div class="tg-c-pad"></div></div>';
+    list = panel.querySelector('.tg-c-list');
+    bindGrip(panel.querySelector('.tg-c-grip'));
     stopEvents(panel);
     panel.addEventListener('mouseenter', () => { hover = true; });
     panel.addEventListener('mouseleave', () => { hover = false; });
@@ -89,6 +91,45 @@ const TGComments = (() => {
       if (pad) pad.style.height = list.clientHeight + 'px';
     }).observe(panel);
     p.appendChild(panel);
+  }
+
+  // ---------- ドラッグで好きな場所へ（cmt.pos: { l, t } はプレイヤーに対する ％。右側／左側の設定は残す） ----------
+  function applyPos() {
+    if (!panel) return;
+    const pos = cfg.pos;
+    panel.classList.toggle('tg-c-free', !!pos);
+    if (!pos) { ['left', 'top', 'right', 'bottom', 'height'].forEach(k => panel.style.removeProperty(k)); return; }
+    panel.style.left = pos.l + '%';
+    panel.style.top = pos.t + '%';
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    panel.style.height = (pos.h || 70) + '%';
+  }
+  function bindGrip(g) {
+    g.addEventListener('dblclick', e => { e.stopPropagation(); save({ pos: null }); });
+    g.addEventListener('pointerdown', e => {
+      const p = player();
+      if (!p || e.button !== 0) return;
+      e.preventDefault(); e.stopPropagation();
+      const pr = p.getBoundingClientRect(), r = panel.getBoundingClientRect();
+      const dx = e.clientX - r.left, dy = e.clientY - r.top;
+      const h = Math.min(95, (r.height / pr.height) * 100);
+      g.setPointerCapture(e.pointerId);
+      panel.classList.add('tg-c-dragging');
+      let last = null;
+      const move = ev => {
+        const l = Math.max(0, Math.min(100 - (r.width / pr.width) * 100, ((ev.clientX - dx - pr.left) / pr.width) * 100));
+        const t = Math.max(0, Math.min(100 - h, ((ev.clientY - dy - pr.top) / pr.height) * 100));
+        last = { l: +l.toFixed(2), t: +t.toFixed(2), h: +h.toFixed(2) };
+        cfg.pos = last; applyPos();
+      };
+      const up = () => {
+        g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up);
+        panel.classList.remove('tg-c-dragging');
+        if (last) save({ pos: last });
+      };
+      g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+    });
   }
 
   // 動画の再生／一時停止にクリックが伝わらないようにする
@@ -109,13 +150,14 @@ const TGComments = (() => {
       row('速さ', 'speed', [[1, '遅い'], [2, '普通'], [3, '速い']]) +
       row('幅', 'width', [['narrow', '狭い'], ['normal', '普通'], ['wide', '広い']]) +
       row('並び', 'sort', [['top', '評価順'], ['new', '新しい順']]) +
+      row('外国語', 'tr', [['ja', '日本語に翻訳'], ['off', 'そのまま']]) +
       row('最後まで流れたら', 'end', [['hide', '隠す'], ['loop', 'ループ'], ['stay', 'そのまま']]) +
       '<div class="tg-c-hint">設定はほかの動画でも共通で、次に開いたときも同じです</div>';
     menu.addEventListener('click', async e => {
       const b = e.target.closest('button[data-k]');
       if (!b) return;
       const v = b.dataset.k === 'speed' ? +b.dataset.v : b.dataset.v;
-      await save({ [b.dataset.k]: v });
+      await save({ [b.dataset.k]: v, ...(b.dataset.k === 'side' ? { pos: null } : {}) });
       menu?.remove(); menu = null;
     });
     player()?.appendChild(menu);
@@ -160,21 +202,59 @@ const TGComments = (() => {
   // コメントの「12:34」「1:02:03」を押せるようにする（その時間へ移動）。目次は chapters.js
   const TS = /(^|[^\d:])((?:(\d{1,2}):)?(\d{1,2}):([0-5]\d))(?![\d:])/g;
   let stamps = [];
-  function linkTimes(text, author) {
+  function linkTimes(text, author, noStamp) {
     const dur = video()?.duration || Infinity;
     return esc(text).replace(TS, (m, pre, all, h, mi, se) => {
       const sec = (+h || 0) * 3600 + +mi * 60 + +se;
       if (!(sec < dur + 1)) return m;
       const line = text.split('\n').find(l => l.includes(all)) || text;
-      stamps.push({ sec, label: all, text: line.replace(all, '').trim().slice(0, 60), author });
+      if (!noStamp) stamps.push({ sec, label: all, text: line.replace(all, '').trim().slice(0, 60), author });
       return `${pre}<button class="tg-ts" data-sec="${sec}">${all}</button>`;
     });
   }
   function append(items) {
+    const start = list.querySelectorAll('.tg-c-item').length;
     list.insertAdjacentHTML('beforeend', items.map(c => `<div class="tg-c-item">
-      <div class="tg-c-meta"><span class="tg-c-author">${esc(c.author)}</span>${c.likes && c.likes !== '0' ? `<span class="tg-c-like">♥ ${esc(c.likes)}</span>` : ''}${c.time ? `<span class="tg-c-time">${esc(c.time)}</span>` : ''}</div>
+      <div class="tg-c-meta"><span class="tg-c-author"${c.chId ? ` data-chid="${esc(c.chId)}"` : ''}>${esc(c.author)}</span>${c.likes && c.likes !== '0' ? `<span class="tg-c-like">♥ ${esc(c.likes)}</span>` : ''}${c.time ? `<span class="tg-c-time">${esc(c.time)}</span>` : ''}</div>
       <div class="tg-c-text">${linkTimes(c.text, c.author)}</div></div>`).join(''));
+    if (cfg.tr !== 'off') {
+      const els = [...list.querySelectorAll('.tg-c-item')].slice(start);
+      items.forEach((c, i) => { if (els[i] && isForeign(c.text)) trQueue.push({ el: els[i], text: c.text, author: c.author, v: vid }); });
+      trPump();
+    }
   }
+
+  // ---------- 外国語のコメントを日本語に（Google 翻訳。同じ文は覚えておく） ----------
+  const KANA = /[\u3040-\u30ff\uff66-\uff9f]/;
+  const isForeign = t => { const s = String(t || '').replace(/https?:\S+|@\S+|[\d:：]+/g, ''); return !KANA.test(s) && (s.match(/\p{L}/gu) || []).length >= 3; };
+  const trMem = new Map(), trQueue = [];
+  let trBusy = 0;
+  async function trPump() {
+    while (trBusy < 3 && trQueue.length) {
+      const job = trQueue.shift();
+      if (job.v !== vid || !job.el.isConnected) continue;
+      trBusy++;
+      (async () => {
+        let ja = trMem.get(job.text);
+        if (ja === undefined) {
+          try { ja = await chrome.runtime.sendMessage({ type: 'translate', q: job.text.slice(0, 1500), to: 'ja' }); } catch { ja = null; }
+          trMem.set(job.text, ja || null);
+        }
+        const box = job.el.querySelector('.tg-c-text');
+        if (ja && box && job.v === vid && ja.trim() !== job.text.trim()) {
+          box.innerHTML = linkTimes(ja, job.author, true);
+          box.insertAdjacentHTML('afterend', `<div class="tg-c-orig"><button class="tg-c-trbtn" title="原文を表示">🌐 翻訳</button><span hidden>${esc(job.text)}</span></div>`);
+        }
+      })().finally(() => { trBusy--; trPump(); });
+    }
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest?.('.tg-c-trbtn');
+    if (!b || !panel?.contains(b)) return;
+    e.preventDefault(); e.stopPropagation();
+    const sp = b.nextElementSibling; sp.hidden = !sp.hidden;
+    b.textContent = sp.hidden ? '🌐 翻訳' : '🌐 原文を隠す';
+  }, true);
   // 時間を押したら、その場面へ
   document.addEventListener('click', e => {
     const b = e.target.closest?.('.tg-ts');

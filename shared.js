@@ -253,7 +253,7 @@ const TG = {
   AUX: {
     history: ['history', 'daily', 'watched', 'ytHistSeen', 'dayCh', 'dayHr', 'dayYt'], // 視聴記録・視聴済み（履歴の取り込み済み印も）
     later: ['later', 'laterRemoved', 'bookmarks', 'bmRemoved', 'bmFolders'],                      // 後で見る（外した記録も）
-    prefs: ['notifyFolders', 'cmt', 'assistOn', 'mgrThumbs', 'mgrThumbCount', 'statsPeriod', 'rydOn', 'ytHistOn', 'assistRules', 'recKind', 'statsTheme', 'wlSort', 'newOff', 'laterOff', 'recPrefs', 'cmOpen', 'pickMode', 'notifyRules', 'focus', 'folderGoals', 'sleepWin', 'cchap', 'px', 'folderRates', 'chSet', 'freeMin', 'viewCap', 'statsPat', 'laterOpen', 'prefsAt'] // その他の設定（prefsAt＝最後に変えた時刻）
+    prefs: ['notifyFolders', 'cmt', 'assistOn', 'mgrThumbs', 'mgrThumbCount', 'statsPeriod', 'rydOn', 'ytHistOn', 'assistRules', 'recKind', 'statsTheme', 'wlSort', 'newOff', 'laterOff', 'recPrefs', 'cmOpen', 'pickMode', 'notifyRules', 'focus', 'folderGoals', 'sleepWin', 'cchap', 'px', 'folderRates', 'chSet', 'freeMin', 'viewCap', 'statsPat', 'laterOpen', 'laterOrder', 'fOpen', 'recAlgo', 'hideMembers', 'bmClosed', 'statsView', 'prefsAt'] // その他の設定（prefsAt＝最後に変えた時刻）
   },
 
   // opts: { meta, history, later, prefs }（省略時はすべて含める）
@@ -627,6 +627,30 @@ const TG = {
     return m ? Math.round(+m[1] * ({ k: 1e3, m: 1e6, b: 1e9 }[(m[2] || '').toLowerCase()] || 1)) : 0;
   },
 
+  // チャンネルのページへ、YouTube の中で移動（右のメインだけ切り替える）。チャンネルID が分からなければふつうに移動
+  goChannel(key, channels = {}) {
+    const url = TG.channelUrl(key);
+    const c = channels[key];
+    const id = c?.id || (String(key).match(/^channel\/(UC[\w-]+)/) || [])[1] || '';
+    if (!id) { location.assign(url); return; }
+    const path = new URL(url, location.href).pathname;
+    let done = false;
+    const on = e => { let d; try { d = JSON.parse(e.detail); } catch { return; } if (d.id !== 'nav') return; document.removeEventListener('tg-res', on); done = !!d.result; };
+    document.addEventListener('tg-res', on);
+    document.dispatchEvent(new CustomEvent('tg-cmd', { detail: JSON.stringify({ id: 'nav', op: 'nav', args: { url: path, id } }) }));
+    // うまく移動できなかったら（2秒たっても別のページのまま）ふつうに移動
+    setTimeout(() => { document.removeEventListener('tg-res', on); if (!done || location.pathname.toLowerCase() !== decodeURIComponent(path).toLowerCase()) { if (!location.pathname.startsWith(decodeURIComponent(path))) location.assign(url); } }, 2500);
+  },
+  // 効果音（sounds/ の mp3）。設定 px.sfx（true/false）・px.sfxVol（10〜100）
+  async sfx(name) {
+    try {
+      const { px = {} } = await chrome.storage.local.get('px');
+      if (px.sfx === false || px['sfx_' + name] === false) return;
+      const a = new Audio(chrome.runtime.getURL(`sounds/${name}.mp3`));
+      a.volume = Math.min(1, Math.max(0.05, (+px.sfxVol || 50) / 100));
+      await a.play();
+    } catch { /* 再生できなければ鳴らさない */ }
+  },
   dayKey(t = Date.now()) {
     const d = new Date(t);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

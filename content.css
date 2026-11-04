@@ -32,7 +32,7 @@ html[dark] {
 ytd-browse.tg-takeover[page-subtype="subscriptions"] #primary > :not(#tg-bar):not(#tg-bar-spacer):not(#tg-feed) { display: none !important; }
 
 #tg-bar {
-  position: fixed; z-index: 1000; box-sizing: border-box;
+  position: fixed; z-index: 2019; box-sizing: border-box; /* YouTube の上の帯・検索の候補（2020）より奥に */
   padding: 12px 16px 10px;
   font-family: Roboto, Arial, "Noto Sans JP", sans-serif;
   box-shadow: 0 6px 8px -8px rgba(0,0,0,.4);
@@ -66,13 +66,13 @@ html[dark] #tg-bar { background: #0f0f0f; }
 .tg-seg-btn:hover { background: var(--tg-chip-h); }
 .tg-seg-btn.tg-active { background: var(--tg-act-bg); color: var(--tg-act-fg) !important; }
 
-#tg-feed { --tg-cols: 4; padding: 12px 16px 40px; font-family: Roboto, Arial, "Noto Sans JP", sans-serif; }
+:is(#tg-feed, #tg-hf-list) { --tg-cols: 4; padding: 12px 16px 40px; font-family: Roboto, Arial, "Noto Sans JP", sans-serif; }
 .tg-feed-status { color: var(--tg-sub); font-size: 12px; min-height: 16px; margin-bottom: 8px; }
 .tg-grid { display: grid; grid-template-columns: repeat(var(--tg-cols), minmax(0, 1fr)); gap: 32px 16px; }
 .tg-card { display: block; text-decoration: none; color: var(--tg-fg); min-width: 0; }
 .tg-thumb { position: relative; aspect-ratio: 16 / 9; border-radius: 12px; overflow: hidden; background: var(--tg-skel); }
-#tg-feed[data-type="short"] .tg-thumb { aspect-ratio: 9 / 16; }
-#tg-feed[data-type="short"] .tg-grid { gap: 24px 12px; }
+:is(#tg-feed, #tg-hf-list)[data-type="short"] .tg-thumb { aspect-ratio: 9 / 16; }
+:is(#tg-feed, #tg-hf-list)[data-type="short"] .tg-grid { gap: 24px 12px; }
 .tg-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .2s; }
 .tg-card:hover .tg-thumb img { transform: scale(1.03); }
 .tg-badge {
@@ -83,7 +83,7 @@ html[dark] #tg-bar { background: #0f0f0f; }
   margin-top: 10px; font-size: 16px; font-weight: 500; line-height: 22px; color: var(--tg-fg);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-#tg-feed[data-type="short"] .tg-title { font-size: 15px; }
+:is(#tg-feed, #tg-hf-list)[data-type="short"] .tg-title { font-size: 15px; }
 .tg-sub { font-size: 14px; color: var(--tg-sub); line-height: 20px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tg-empty { grid-column: 1 / -1; text-align: center; color: var(--tg-sub); padding: 80px 20px; font-size: 15px; line-height: 1.8; }
 .tg-more { height: 1px; }
@@ -171,7 +171,7 @@ html:not([dark]) .tg-ht-panel { background: #fff; }
 .tg-card.tg-watched .tg-thumb img { filter: brightness(.45) saturate(.6); }
 .tg-card.tg-watched .tg-title { color: var(--tg-sub); }
 .tg-card.tg-watched .tg-wbadge { background: #3ea6ff; color: #0f0f0f; }
-#tg-feed.tg-hidewatched .tg-card.tg-watched { display: none; }
+:is(#tg-feed, #tg-hf-list).tg-hidewatched .tg-card.tg-watched { display: none; }
 
 /* ===== 新着件数 ===== */
 .tg-new {
@@ -374,7 +374,7 @@ html:not([dark]) .tg-toast { background: #fff; color: #0f0f0f; }
 .tg-qbox span { font-size: 13px; opacity: .7; }
 .tg-qbox input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; color: var(--tg-fg); font: 13px Roboto, Arial, "Noto Sans JP", sans-serif; }
 .tg-qbox:focus-within { border-color: #3ea6ff; }
-#tg-feed .tg-card.tg-qhide { display: none; }
+:is(#tg-feed, #tg-hf-list) .tg-card.tg-qhide { display: none; }
 
 /* お気に入り以外を検索 */
 .tg-chips.tg-search { align-items: center; }
@@ -622,7 +622,7 @@ html[dark] .tg-bmgo { background: #3ea6ff; color: #0f0f0f !important; }
 .tg-px-chpop p { margin: 8px 0 0; opacity: .6; font-size: 11px; }
 .tg-free { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 0 26px; padding: 0; background: none; color: var(--tg-fg); font: 400 12px Roboto, Arial, "Noto Sans JP", sans-serif; cursor: default; }
 .tg-free-min { width: 72px; height: 26px; border-radius: 6px; border: 1px solid var(--tg-chip-h); background: transparent; color: var(--tg-fg); padding: 0 6px; font: inherit; }
-.tg-free-go, .tg-free-bed { height: 26px; padding: 0 10px; border: none; border-radius: 13px; background: #065fd4; color: #fff; font-weight: 700; cursor: pointer; font-size: 12px; }
+.tg-free-go, .tg-free-bed, .tg-free-all, .tg-free-rnd { height: 26px; padding: 0 10px; border: none; border-radius: 13px; background: #065fd4; color: #fff; font-weight: 700; cursor: pointer; font-size: 12px; }
 .tg-free-bed { background: #3949ab; }
 html[dark] .tg-free-go { background: #3ea6ff; color: #0f0f0f; }
 html[dark] .tg-free-bed { background: #7986cb; color: #0f0f0f; }
@@ -760,8 +760,239 @@ html[dark] .tg-bmto option { background: #282828; color: #f1f1f1; }
 .tg-bmfl { margin-left: 6px; padding: 1px 8px; border-radius: 10px; background: var(--tg-chip-h); font-size: 11px; }
 /* ショートの再生時間・今日の視聴時間 */
 #tg-stime { position: fixed; z-index: 2000; min-width: 160px; padding: 10px 14px; border-radius: 14px; background: rgba(20,20,20,.82); color: #fff; font: 13px/1.6 Roboto, Arial, "Noto Sans JP", sans-serif; box-shadow: 0 4px 16px rgba(0,0,0,.35); pointer-events: none; }
-#tg-stime .t { font: 700 22px/1.2 Roboto, Arial, sans-serif; font-variant-numeric: tabular-nums; }
-#tg-stime .t small { font-size: 14px; opacity: .7; }
-#tg-stime .bar { height: 4px; margin: 6px 0 8px; border-radius: 2px; background: rgba(255,255,255,.25); overflow: hidden; }
-#tg-stime .bar i { display: block; height: 100%; background: #ff0033; }
+#tg-stime .t { margin-bottom: 6px;  font: 700 22px/1.2 Roboto, Arial, sans-serif; font-variant-numeric: tabular-nums; }
 #tg-stime .d b { font-variant-numeric: tabular-nums; }
+#tg-hsnd { position: fixed; right: 24px; bottom: 24px; z-index: 3000; padding: 10px 16px; border-radius: 999px; border: none; background: #3a3a3a; color: #fff; font: 600 14px Roboto, Arial, "Noto Sans JP", sans-serif; box-shadow: 0 4px 14px rgba(0,0,0,.3); cursor: pointer; }
+#tg-hsnd.on { background: #1e88e5; }
+#tg-hsnd:hover { filter: brightness(1.15); }
+.tg-fp { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; z-index: 3; opacity: 0; pointer-events: none; transition: opacity .2s; background: #000; }
+.tg-fp-on .tg-fp-sb, .tg-fp-play .tg-fp-emb { opacity: 1; }
+.tg-fp-sb { z-index: 3; }
+.tg-fp-emb { z-index: 4; }
+.tg-fp-on .tg-dur, .tg-fp-on .tg-badge, .tg-fp-on .tg-wbadge { opacity: 0; }
+.tg-c-orig { margin-top: 3px; font-size: 11px; opacity: .75; }
+.tg-c-orig span { display: block; margin-top: 2px; white-space: pre-wrap; }
+.tg-c-orig span[hidden] { display: none; }
+.tg-c-trbtn { border: none; background: rgba(255,255,255,.12); color: inherit; border-radius: 8px; padding: 0 6px; font: inherit; cursor: pointer; }
+.tg-fp-sb { opacity: 1; background-repeat: no-repeat; pointer-events: none; }
+.tg-fp-sb i { position: absolute; left: 0; bottom: 0; height: 3px; background: #ff0033; }
+
+/* ===== 右上の ⚙（TubeFolio 全体の設定） ===== */
+#tg-mh-gear {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 40px; height: 40px; margin: 0 4px 0 8px; padding: 8px; border: none; border-radius: 50%;
+  background: transparent; color: var(--yt-spec-text-primary, #f1f1f1); cursor: pointer;
+}
+#tg-mh-gear:hover { background: var(--yt-spec-badge-chip-background, rgba(255,255,255,.1)); }
+#tg-mh-gear svg { width: 24px; height: 24px; fill: currentColor; }
+
+/* 登録チャンネル画面：YouTube のチップの段は TubeFolio のツールの下へ（content.js の placeYtChips） */
+.tg-chips-moved { background: var(--yt-spec-base-background, #0f0f0f) !important; transition: transform .22s ease; }
+
+/* ===== 履歴オフ中のホーム：YouTube のおすすめの代わりに TubeFolio の一覧 ===== */
+ytd-browse.tg-home-nohist[page-subtype="home"] ytd-rich-grid-renderer { display: none !important; }
+#tg-homefeed { width: 100%; }
+#tg-homefeed .tg-hf-head { display: flex; align-items: center; gap: 10px; padding: 16px 16px 0; font: 600 15px Roboto, Arial, "Noto Sans JP", sans-serif; color: var(--tg-fg); }
+#tg-homefeed .tg-hf-head small { font-weight: 400; color: var(--tg-sub); }
+/* 概要欄のハッシュタグ（タグの下の2段目） */
+.tg-tags .tg-tags-h2 { margin-top: 10px; }
+.tg-tags .tg-tags-hash a { color: var(--yt-spec-call-to-action, #3ea6ff) !important; }
+.tg-tags .tg-tags-hash a:hover { color: #0f0f0f !important; }
+
+/* ===== ホームの一番上のツール（新着〜ブックマーク） ===== */
+/* ホーム：YouTube のチップの段の左に TubeFolio のツール（content.js の homeTypes） */
+#tg-hometypes.tg-ht-float { position: fixed; z-index: 2019; margin: 0; } /* YouTube の段と同じ高さ（後から置くので段より手前・上の帯と検索の候補より奥） */
+#tg-hometypes { flex: none; margin-right: 12px; align-self: center; position: relative; z-index: 2022; }
+
+#primary > #tg-hometypes { display: inline-flex; margin: 12px 0 0; }
+
+/* ===== ブックマーク：フォルダの見出しを「後で見る」の一覧と同じ見た目に（横いっぱいの行・下線で区切り） ===== */
+.tg-bmsec { gap: 0; }
+.tg-bmsec + .tg-bmsec { margin-top: 0; padding-top: 0; border-top: 1px solid var(--tg-line); }
+.tg-bmsh { align-self: stretch; min-width: 0; padding: 12px 4px; margin: 0 -4px; border-radius: 8px; background: transparent; font: 700 18px Roboto, Arial, "Noto Sans JP", sans-serif; gap: 10px; }
+.tg-bmsh:hover { background: var(--tg-chip); }
+.tg-bmsh small { font-size: 12px; font-weight: 400; margin-right: 0; }
+.tg-bmsh .tg-bmsn { display: inline-flex; align-items: center; gap: 6px; }
+.tg-bmsh .tg-bmsbtn { opacity: 0; }
+.tg-bmsh:hover .tg-bmsbtn { opacity: 1; }
+.tg-bmsh .tg-bmsbtn:first-of-type { margin-left: auto; }
+.tg-bmarr { width: 16px; font-size: 13px; transform: rotate(0deg); }
+.tg-bmsec.closed .tg-bmarr { transform: rotate(-90deg); }
+.tg-bmsec:not(.closed) > .tg-bml { padding: 4px 0 16px; }
+.tg-bmhead { margin-bottom: 8px; }
+
+/* ===== v4.44 追加機能（xtra.js） ===== */
+/* 👎 一覧のサムネの低評価率 */
+.tg-disb { position: absolute; top: 6px; right: 6px; z-index: 5; padding: 1px 6px; border-radius: 4px; background: rgba(0,0,0,.72); color: #fff; font: 700 12px/18px Roboto, Arial, sans-serif; pointer-events: none; }
+.tg-disb.hi { background: #b71c1c; }
+/* 👎 再生時の警告 */
+.tg-rydwarn { margin: 8px 0 0; padding: 6px 12px; border-radius: 8px; background: rgba(183,28,28,.18); border-left: 4px solid #e53935; color: var(--tg-fg); font: 600 13px Roboto, Arial, "Noto Sans JP", sans-serif; }
+/* ⚠️ GitHub の賞味期限（プレイヤー全体の透かし） */
+.tg-ghwm { position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none;
+  color: rgba(255,214,0,.55); text-shadow: 0 2px 12px rgba(0,0,0,.6); font: 900 clamp(28px, 6vw, 72px)/1.1 Roboto, Arial, "Noto Sans JP", sans-serif; transform: rotate(-12deg); }
+.tg-ghwm small { font-size: clamp(14px, 2vw, 24px); font-weight: 700; margin-top: 10px; }
+/* 📖 Wikipedia */
+#tg-wiki { margin: 0 0 12px; padding: 10px; border-radius: 12px; background: var(--tg-chip); color: var(--tg-fg); font: 13px Roboto, Arial, "Noto Sans JP", sans-serif; }
+.tg-wiki-h { display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 6px; }
+.tg-wiki-x { margin-left: auto; border: none; background: transparent; color: var(--tg-sub); cursor: pointer; font-size: 14px; border-radius: 50%; width: 26px; height: 26px; }
+.tg-wiki-x:hover { background: var(--tg-chip-h); color: var(--tg-fg); }
+.tg-wiki-it { display: flex; gap: 10px; padding: 8px 4px; border-top: 1px solid var(--tg-line); color: var(--tg-fg) !important; text-decoration: none; }
+.tg-wiki-it:hover b { text-decoration: underline; }
+.tg-wiki-it img { flex: none; width: 56px; height: 56px; object-fit: cover; border-radius: 6px; }
+.tg-wiki-it p { margin: 2px 0 0; color: var(--tg-sub); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+/* ☀️ 晴れの日の外出のすすめ */
+.tg-outdoor { position: absolute; inset: 0; z-index: 90; display: grid; place-items: center; background: linear-gradient(160deg, #4fc3f7, #0288d1); color: #fff; font-family: Roboto, Arial, "Noto Sans JP", sans-serif; text-align: center; }
+.tg-out-sun { font-size: clamp(48px, 9vw, 110px); line-height: 1; }
+.tg-out-t { margin-top: 12px; font: 900 clamp(20px, 3.4vw, 40px) Roboto, Arial, "Noto Sans JP", sans-serif; text-shadow: 0 2px 8px rgba(0,0,0,.25); }
+.tg-out-s { margin-top: 8px; font-size: 14px; opacity: .9; }
+.tg-out-snz { margin-top: 22px; border: 1px solid rgba(255,255,255,.6); background: transparent; color: #fff; border-radius: 16px; padding: 4px 12px; font-size: 12px; opacity: .7; cursor: pointer; }
+.tg-out-snz:hover { opacity: 1; }
+/* 📼 削除された動画（後で見る） */
+.tg-wbtag { position: absolute; left: 8px; bottom: 10px; z-index: 5; padding: 2px 8px; border-radius: 4px; background: rgba(0,0,0,.8); color: #fff; font: 700 12px/18px Roboto, Arial, "Noto Sans JP", sans-serif; }
+.tg-card.tg-wbok .tg-wbtag { background: #6a1b9a; }
+.tg-card.tg-wbng .tg-thumb img { filter: grayscale(1) brightness(.6); }
+
+/* 👎 は右上。TubeFolio の一覧で「途中 〇%／視聴済み」が出ているときはその下に。賛否両論順の 👎 が出ているときは出さない */
+.tg-card.tg-partial .tg-thumb > .tg-disb, .tg-card.tg-watched .tg-thumb > .tg-disb { top: 32px; right: 8px; }
+.tg-thumb:has(.tg-chaos) > .tg-disb { display: none; }
+.tg-fp-on > .tg-disb { opacity: 0; }
+
+/* ⏪ ⏯ ⏩ スマホ版のように、動画の真ん中に（操作バーが出ているときだけ） */
+.tg-px-mseek { position: absolute; left: 50%; top: 50%; z-index: 59; transform: translate(-50%, -50%); display: flex; align-items: center; gap: clamp(28px, 9vw, 96px); pointer-events: none; transition: opacity .2s; }
+#movie_player.ytp-autohide .tg-px-mseek, #movie_player.ad-showing .tg-px-mseek, #movie_player.ended-mode .tg-px-mseek { opacity: 0; }
+#movie_player.ytp-autohide .tg-px-mseek button { pointer-events: none; }
+.tg-px-mseek button { pointer-events: auto; position: relative; display: grid; place-items: center; border: none; border-radius: 50%; cursor: pointer; color: #fff;
+  width: clamp(44px, 6vw, 64px); height: clamp(44px, 6vw, 64px); background: rgba(0,0,0,.45); }
+.tg-px-mseek button.pp { width: clamp(56px, 7.5vw, 80px); height: clamp(56px, 7.5vw, 80px); }
+.tg-px-mseek button:hover { background: rgba(0,0,0,.65); }
+.tg-px-mseek svg { width: 60%; height: 60%; fill: #fff; }
+.tg-px-mseek .n { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -30%); font: 700 11px/1 Roboto, Arial, sans-serif; pointer-events: none; }
+
+/* メンバー限定（TubeFolio の一覧）：左上に。新着などはその下へ */
+.tg-badge.tg-mem { background: #2e7d32; color: #fff; }
+.tg-thumb .tg-badge.tg-mem ~ .tg-badge:not(.tg-chaos) { top: 34px; }
+:is(#tg-feed, #tg-hf-list).tg-hidemem .tg-card.tg-mo { display: none; }
+
+/* TubeFolio の一覧：チャンネル名はチャンネルへのリンク */
+.tg-chname[data-chk] { cursor: pointer; }
+.tg-chname[data-chk]:hover { color: var(--tg-fg); text-decoration: underline; }
+
+/* サイドバー：フォルダの中のチャンネル名 */
+#tg-guide .tg-g-ch { min-height: 32px; font-size: 13px; color: var(--tg-sub); cursor: pointer; }
+#tg-guide .tg-g-ch:hover { color: var(--tg-fg); }
+#tg-guide .tg-g-av { flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--tg-chip); object-fit: cover; }
+#tg-guide .tg-g-dragging { opacity: .45; }
+#tg-guide .tg-g-drop { outline: 2px solid #3ea6ff; outline-offset: -2px; background: rgba(62,166,255,.15); }
+
+/* ホームのツール：文字の大きさを YouTube のチップ（すべて・ニュース…）と同じ 14px に */
+#tg-hometypes .tg-seg-btn { font-size: 14px; height: 30px; }
+/* チャンネルのページ：右下の 📁＋ の左にツールを置く */
+#tg-hometool.tg-ht-ch { right: 120px; bottom: 24px; }
+
+/* ⏱ チャプターの一覧：動画のチャプター（📑）は太字で目立たせる */
+.tg-cc-row.vc span { font-weight: 700; color: #fff; }
+.tg-cc-row.vc b { color: #ffd54f; }
+/* 賛否両論順の 👎（右上）も、「途中 〇%／視聴済み」があるときはその下へ */
+.tg-card.tg-partial .tg-badge.tg-chaos, .tg-card.tg-watched .tg-badge.tg-chaos { top: 34px; }
+
+/* 真ん中は YouTube の再生／一時停止ボタンに任せる（重ならないように間をあける） */
+.tg-px-mseek .gap { width: clamp(56px, 7.5vw, 80px); }
+
+/* 後で見る：一覧ごとの連続再生・ランダム再生 */
+.tg-free .tg-free-all { background: #cc0000 !important; color: #fff !important; border-color: transparent !important; }
+.tg-free .tg-free-rnd { background: #6a1b9a !important; color: #fff !important; border-color: transparent !important; }
+.tg-free .tg-free-all:hover, .tg-free .tg-free-rnd:hover { filter: brightness(1.15); }
+
+/* 後で見る：右端に連続再生・ランダム再生 */
+.tg-free .tg-free-all { margin-left: auto; }
+/* 一覧の上：ランダム再生 */
+.tg-chip.tg-shuffle { background: #6a1b9a !important; color: #fff !important; }
+/* サイドバー：「フォルダ」の見出しを押せる */
+#tg-guide .tg-g-title[data-fopen] { cursor: pointer; border-radius: 8px; }
+#tg-guide .tg-g-title[data-fopen]:hover { background: var(--tg-chip-h); }
+
+/* サイドバー：フォルダの並べ替えの印 */
+#tg-guide .tg-g-before { box-shadow: inset 0 2px 0 #3ea6ff; }
+#tg-guide .tg-g-after { box-shadow: inset 0 -2px 0 #3ea6ff; }
+
+/* 後で見る：再生リストの作成・編集・削除 */
+.tg-pltools { display: flex; justify-content: flex-end; margin: 0 0 8px; }
+.tg-pladd { height: 32px; padding: 0 14px; border: 1px solid var(--tg-line); border-radius: 16px; background: var(--tg-chip); color: var(--tg-fg); font: 600 13px Roboto, Arial, "Noto Sans JP", sans-serif; cursor: pointer; }
+.tg-pladd:hover { background: var(--tg-chip-h); }
+.tg-plmenu { margin-left: auto; width: 32px; height: 32px; border: none; border-radius: 50%; background: transparent; color: var(--tg-fg); font-size: 18px; cursor: pointer; }
+.tg-plmenu:hover { background: var(--tg-chip-h); }
+#tg-plpop { position: fixed; z-index: 3000; display: flex; flex-direction: column; min-width: 160px; padding: 6px 0; border-radius: 12px; background: #282828; box-shadow: 0 8px 24px rgba(0,0,0,.5); font: 14px Roboto, Arial, "Noto Sans JP", sans-serif; }
+#tg-plpop button { text-align: left; padding: 10px 16px; border: none; background: transparent; color: #f1f1f1; cursor: pointer; font: inherit; }
+#tg-plpop button:hover { background: rgba(255,255,255,.1); }
+#tg-plpop .danger { color: #ff6b6b; }
+html:not([dark]) #tg-plpop { background: #fff; }
+html:not([dark]) #tg-plpop button { color: #0f0f0f; }
+
+/* 流れるコメント：ドラッグで移動 */
+.tg-c-grip { position: absolute; top: -2px; left: 50%; transform: translateX(-50%); z-index: 2; padding: 2px 10px; border-radius: 10px; background: rgba(0,0,0,.6); color: #fff; font: 600 11px Roboto, Arial, "Noto Sans JP", sans-serif; cursor: grab; opacity: 0; transition: opacity .2s; user-select: none; }
+.tg-c-panel:hover .tg-c-grip, .tg-c-panel.tg-c-dragging .tg-c-grip { opacity: 1; }
+.tg-c-panel.tg-c-dragging .tg-c-grip { cursor: grabbing; }
+.tg-c-panel.tg-c-free { -webkit-mask-image: none; mask-image: none; }
+.tg-c-panel.tg-c-dragging { outline: 2px dashed rgba(62,166,255,.8); outline-offset: 2px; }
+.tg-c-panel:hover { -webkit-mask-image: none; mask-image: none; }
+
+/* ⏪⏩・コマ送り：薄さは設定（--tg-seek-op）。乗せるとはっきり */
+.tg-px-mseek button { opacity: var(--tg-seek-op, .4); transition: opacity .15s; background: rgba(0,0,0,.25); }
+.tg-px-mseek button:hover { opacity: 1; background: rgba(0,0,0,.55); }
+.tg-px-mseek .fr { width: clamp(30px, 4vw, 42px); height: clamp(30px, 4vw, 42px); }
+.tg-px-mseek .fr svg { width: 55%; height: 55%; }
+.tg-px-mseek.tg-nofr .fr { display: none; }
+/* 進行状況バーを常に表示（操作バーが隠れているときだけ） */
+.tg-px-prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; z-index: 40; background: rgba(255,255,255,.2); pointer-events: none; opacity: 0; transition: opacity .2s; }
+.tg-px-prog i { display: block; height: 100%; width: 0; background: #f00; }
+#movie_player.ytp-autohide .tg-px-prog { opacity: 1; }
+/* 再生バーを常に表示：映像を少し縮めて、操作バーを動画の下に置く */
+#movie_player.tg-ctl-always .ytp-chrome-bottom, #movie_player.tg-ctl-always .ytp-gradient-bottom { opacity: 1 !important; }
+#movie_player.tg-ctl-always.ytp-autohide { cursor: default !important; }
+#movie_player.tg-ctl-always { background: #000; }
+#movie_player.tg-ctl-always .html5-video-container { position: absolute; inset: 0 0 52px 0; }
+#movie_player.tg-ctl-always video.html5-main-video { width: 100% !important; height: 100% !important; left: 0 !important; top: 0 !important; object-fit: contain; }
+#movie_player.tg-ctl-always .ytp-gradient-bottom { display: none !important; }
+
+/* 新プレビュー：大きく作って縮めた埋め込み（枠からはみ出す分は切る） */
+.tg-thumb:has(> .tg-fp-new), .tg-bmth:has(> .tg-fp-new) { overflow: hidden; }
+.tg-fp.tg-fp-new { inset: auto; max-width: none; max-height: none; }
+
+/* 就寝のお知らせ：延長する時間の選択 */
+.tg-px-rem-sel { height: 30px; padding: 0 8px; border-radius: 15px; border: 1px solid rgba(255,255,255,.4); background: rgba(0,0,0,.4); color: #fff; font: 600 13px Roboto, Arial, "Noto Sans JP", sans-serif; cursor: pointer; }
+.tg-px-rem-sel option { color: #0f0f0f; }
+
+/* 後で見る：📚 ライブラリ（以前の行表示。今はカード） */
+.tg-lib { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 12px; }
+.tg-lib-row { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-radius: 10px; font: 14px Roboto, Arial, "Noto Sans JP", sans-serif; color: var(--tg-fg); }
+.tg-lib-row:hover { background: var(--tg-chip); }
+.tg-lib-th { flex: none; width: 120px; aspect-ratio: 16 / 9; border-radius: 8px; overflow: hidden; background: var(--tg-chip); }
+.tg-lib-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tg-lib-t { flex: 1; min-width: 0; color: var(--tg-fg) !important; font-weight: 600; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-lib-t:hover { text-decoration: underline; }
+.tg-lib-o { flex: none; color: var(--tg-sub); font-size: 12px; max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tg-lib-del { flex: none; height: 30px; padding: 0 12px; border: 1px solid var(--tg-line); border-radius: 15px; background: transparent; color: #ff6b6b; font: 600 12px Roboto, Arial, "Noto Sans JP", sans-serif; cursor: pointer; }
+.tg-lib-del:hover { background: rgba(255,80,80,.15); }
+/* 後で見る：一覧のドラッグ並べ替え */
+.tg-sec-h[draggable] { cursor: grab; }
+.tg-sec.tg-sec-drag { opacity: .45; }
+.tg-sec.tg-sec-before { box-shadow: inset 0 3px 0 #3ea6ff; }
+.tg-sec.tg-sec-after { box-shadow: inset 0 -3px 0 #3ea6ff; }
+
+/* 後で見る：見出しの「YouTubeの並び」は右端（⋮ の隣） */
+.tg-sec-h .tg-wlsort { margin-left: auto; }
+.tg-sec-h .tg-wlsort + .tg-plmenu { margin-left: 4px; }
+/* ライブラリのカード：🗑 は右上 */
+.tg-libcard .tg-lib-del { color: #ff6b6b; }
+/* ☰ リスト表示：1行に1本（左にサムネ・右にタイトル） */
+.tg-listview :is(.tg-grid, .tg-grid-in) { grid-template-columns: minmax(0, 1fr) !important; gap: 10px !important; }
+.tg-listview .tg-card { display: grid; grid-template-columns: clamp(160px, 22vw, 260px) minmax(0, 1fr); column-gap: 16px; align-items: start; }
+.tg-listview .tg-card > .tg-thumb { grid-row: 1 / span 6; }
+.tg-listview .tg-card > :not(.tg-thumb) { grid-column: 2; }
+.tg-listview .tg-card .tg-title { font-size: 16px; }
+.tg-listview[data-type="short"] .tg-card { grid-template-columns: 110px minmax(0, 1fr); }
+
+/* 後で見る：サムネをドラッグして別の一覧へ移動 */
+.tg-card.tg-card-drag { opacity: .45; }
+.tg-carddrag .tg-sec:not(.tg-sec-drop) > .tg-sec-h { outline: 1px dashed rgba(62,166,255,.45); outline-offset: -2px; }
+.tg-sec.tg-sec-drop { outline: 2px solid #3ea6ff; outline-offset: 2px; border-radius: 10px; background: rgba(62,166,255,.08); }

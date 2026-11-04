@@ -6,7 +6,7 @@
 //   設定 px: { seek, seekSec, mini, brk（分・0＝オフ）, bed }、sleepWin: { on, from, to }（視聴パターンの就寝時間と共通）
 const TGPlayerX = (() => {
   const esc = TG.esc;
-  const DEF = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, adFast: true, saver: false, exact: true, tags: true, nth: true, echo: true };
+  const DEF = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, jaOff: true, seekOp: 40, frameBtn: true, alwaysProg: false, alwaysCtl: false, adFast: true, saver: false, exact: true, tags: true, nth: true, echo: true };
   let cfg = { ...DEF }, rates = {}, sleep = { on: true, from: '23:00', to: '07:00' }, D = null;
   let chSet = {}; // チャンネル別：{ キー: { s: 冒頭スキップ秒, e: 最後スキップ秒, mid: サムネを途中の画面に, name } }
 
@@ -80,31 +80,69 @@ const TGPlayerX = (() => {
     vEl.currentTime = Math.max(0, Math.min((vEl.duration || Infinity) - 0.5, vEl.currentTime + d));
     flash(d > 0 ? `+${d}秒` : `−${-d}秒`);
   }
+  // ⏪ ⏯ ⏩：スマホ版のように動画の真ん中へ（操作バーが出ているあいだだけ表示・押せる）
+  const ICON_PLAY = '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>';
+  const ICON_FRB = '<svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>';
+  const ICON_FRF = '<svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>';
+  const ICON_PAUSE = '<svg viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
   function ensureSeek() {
     const p = player();
-    const left = p?.querySelector('.ytp-left-controls');
-    let box = left?.querySelector('.tg-px-seek');
-    if (!cfg.seek || !left || !curVid()) { box?.remove(); return; }
+    let box = p?.querySelector(':scope > .tg-px-mseek');
+    p?.querySelector('.ytp-left-controls .tg-px-seek')?.remove(); // 以前の操作バーの中のボタン
+    if (!cfg.seek || !p || !curVid()) { box?.remove(); return; }
     const n = cfg.seekSec;
-    if (box && box.dataset.sec === String(n)) return;
-    box?.remove();
-    box = document.createElement('span');
-    box.className = 'tg-px-seek';
-    box.dataset.sec = n;
-    box.innerHTML = `<button class="ytp-button" data-d="-${n}" title="${n}秒戻る">${ICON_B}<span>${n}</span></button><button class="ytp-button" data-d="${n}" title="${n}秒進む">${ICON_F}<span>${n}</span></button>`;
-    ['mousedown', 'mouseup', 'dblclick', 'pointerdown', 'pointerup', 'keydown'].forEach(t => box.addEventListener(t, e => e.stopPropagation()));
-    box.addEventListener('click', e => {
-      const b = e.target.closest('button[data-d]');
-      if (!b) return;
-      e.stopPropagation(); e.preventDefault();
-      seekBy(+b.dataset.d);
-    });
-    const play = left.querySelector('.ytp-play-button');
-    const next = left.querySelector('.ytp-next-button');
-    // 再生ボタン（と「次へ」）のすぐ右
-    const after = next && next.offsetParent ? next : play;
-    if (after) after.after(box); else left.prepend(box);
+    if (!box || box.dataset.sec !== String(n)) {
+      box?.remove();
+      box = document.createElement('div');
+      box.className = 'tg-px-mseek';
+      box.dataset.sec = n;
+      box.innerHTML = `<button class="fr" data-fr="-1" title="1コマ戻る（一時停止して）">${ICON_FRB}</button><button data-d="-${n}" title="${n}秒戻る">${ICON_B}<span class="n">${n}</span></button><span class="gap"></span><button data-d="${n}" title="${n}秒進む">${ICON_F}<span class="n">${n}</span></button><button class="fr" data-fr="1" title="1コマ進む（一時停止して）">${ICON_FRF}</button>`;
+      // YouTube のプレイヤーの「押したら一時停止」「ダブルクリックで全画面」を起こさない
+      ['mousedown', 'mouseup', 'dblclick', 'pointerdown', 'pointerup', 'keydown'].forEach(t => box.addEventListener(t, e => { if (e.target.closest('button')) e.stopPropagation(); }));
+      box.addEventListener('click', e => {
+        const b = e.target.closest('button');
+        if (!b) return;
+        e.stopPropagation(); e.preventDefault();
+        if (b.dataset.pp) { const v = video(); if (v) { if (v.paused) v.play().catch(() => {}); else v.pause(); } paintPP(box); return; }
+        if (b.dataset.fr) { frameStep(+b.dataset.fr); return; }
+        seekBy(+b.dataset.d);
+      });
+      p.appendChild(box);
+    }
+    paintPP(box);
+    box.style.setProperty('--tg-seek-op', Math.min(1, Math.max(0.05, (+cfg.seekOp || 40) / 100)));
+    box.classList.toggle('tg-nofr', cfg.frameBtn === false);
+    applyBars();
   }
+  // コマ送り：一時停止して 1 コマ（30fps とみなす）ずつ
+  function frameStep(dir) {
+    const v = video();
+    if (!v) return;
+    if (!v.paused) v.pause();
+    v.currentTime = Math.max(0, Math.min((v.duration || Infinity) - 0.05, v.currentTime + dir / 30));
+  }
+  // 進行状況バーを常に表示（操作バーが隠れても、動画の一番下に細い赤い線）／再生バーを常に表示（動画の下に置く）
+  let progEl = null;
+  function applyBars() {
+    const p = player();
+    if (!p) return;
+    p.classList.toggle('tg-ctl-always', !!cfg.alwaysCtl);
+    if (!cfg.alwaysProg || cfg.alwaysCtl) { progEl?.remove(); progEl = null; return; }
+    if (!progEl || !p.contains(progEl)) { progEl?.remove(); progEl = document.createElement('div'); progEl.className = 'tg-px-prog'; progEl.innerHTML = '<i></i>'; p.appendChild(progEl); }
+  }
+  document.addEventListener('timeupdate', e => {
+    if (!progEl || e.target !== video()) return;
+    const v = e.target;
+    progEl.firstChild.style.width = (v.duration ? (v.currentTime / v.duration) * 100 : 0) + '%';
+  }, true);
+  function paintPP(box) {
+    const b = box?.querySelector('.pp');
+    const v = video();
+    if (!b) return;
+    const html = v && !v.paused ? ICON_PAUSE : ICON_PLAY;
+    if (b.dataset.st !== html) { b.dataset.st = html; b.innerHTML = html; }
+  }
+  ['play', 'pause'].forEach(t => document.addEventListener(t, e => { if (e.target === video()) paintPP(player()?.querySelector('.tg-px-mseek')); }, true));
 
   // ---------- 自動ミニプレイヤー ----------
   //   YouTubeのプレイヤーは動かさず、映像を右下の小窓（canvas）に映す。音はそのまま
@@ -310,15 +348,51 @@ const TGPlayerX = (() => {
     box.hidden = !cur;
   }
   document.addEventListener('timeupdate', e => { if (dual && e.target === video()) paintDual(); }, true);
+  // 日本語の動画かどうか：
+  //   ① 今流れている音声トラックが日本語（自動吹き替え・多言語音声で日本語を選んでいる）なら日本語
+  //   ② タイトルにひらがな・カタカナがあれば日本語（自動字幕の言語が間違っていることがあるので、こちらを優先）
+  //   ③ YouTube の自動字幕（音声認識）の言語
+  //   ④ 自動字幕が無ければ、字幕の一覧
+  const KANA = /[\u3040-\u309f\u30a0-\u30ff]/;
+  const base = l => String(l || '').toLowerCase().split(/[-_]/)[0];
+  function langOf(tr) {
+    if (base(tr.audio) === 'ja') return { lang: 'ja', why: '音声トラックが日本語' };
+    if (KANA.test(tr.title || '')) return { lang: 'ja', why: 'タイトルにかな' + (tr.spoken && base(tr.spoken) !== 'ja' ? `（自動字幕は ${tr.spoken}）` : '') };
+    if (tr.spoken) return { lang: base(tr.spoken), why: '自動字幕の言語' };
+    if (!(tr.title || '').trim() && KANA.test(tr.desc || '')) return { lang: 'ja', why: '概要欄にかな' };
+    if (tr.tracks?.some(t => base(t.lc) === 'ja')) return { lang: 'ja', why: '日本語の字幕あり' };
+    if (tr.tracks?.length) return { lang: base(tr.tracks[0].lc), why: '字幕の一覧' };
+    return { lang: '', why: '' };
+  }
+  // 自分で字幕ボタン（CC・c キー）を押したら、その動画では自動で消さない
+  let manualFor = null;
+  document.addEventListener('click', e => { if (e.target.closest?.('.ytp-subtitles-button')) manualFor = curVid(); }, true);
+  document.addEventListener('keydown', e => { if ((e.key === 'c' || e.key === 'C') && !e.target.closest?.('input, textarea, [contenteditable]')) manualFor = curVid(); }, true);
+  const ccOn = () => player()?.querySelector('.ytp-subtitles-button')?.getAttribute('aria-pressed') === 'true';
+  let langFor = null, langInfo = null, jaWatchUntil = 0;
   async function autoSub() {
     const v = curVid();
-    if (!v || autoFor === v || !cfg.autoJa || adShowing()) return;
-    const tr = await main('tracks');
-    if (!tr || tr.v !== v) return; // まだ前の動画の情報
-    autoFor = v;
-    if (subFor !== v) { subMode = 'off'; dual = null; }
-    const spoken = spokenOf(tr);
-    if (spoken && spoken !== 'ja' && subMode === 'off') { await setSub('ja'); TG.log('字幕', `話している言語が ${spoken} なので日本語字幕を表示`); }
+    if (!v || (!cfg.autoJa && !cfg.jaOff) || adShowing()) return;
+    if (langFor !== v) {
+      const tr = await main('tracks');
+      if (!tr || tr.v !== v || curVid() !== v) return; // まだ前の動画の情報
+      langFor = v; langInfo = langOf(tr);
+      jaWatchUntil = Date.now() + 30000; // YouTube があとから字幕を付けることがあるので、始まって30秒は見張る
+      if (subFor !== v) { subMode = 'off'; dual = null; }
+      TG.log('字幕', `言語の判定：${langInfo.lang || '不明'}（${langInfo.why || '手がかりなし'}）／音声 ${tr.audio || '-'}${tr.audioOrig && tr.audioOrig !== tr.audio ? `（元 ${tr.audioOrig}）` : ''}・自動字幕 ${tr.spoken || '-'}・字幕 ${(tr.tracks || []).map(t => t.lc).join(',') || 'なし'}／${(tr.title || '').slice(0, 40)}`);
+    }
+    const isJa = langInfo?.lang === 'ja';
+    // 日本語以外：1回だけ日本語字幕に
+    if (autoFor !== v) {
+      autoFor = v;
+      if (cfg.autoJa && langInfo?.lang && !isJa && subMode === 'off') { await setSub('ja'); TG.log('字幕', `話している言語が ${langInfo.lang} なので日本語字幕を表示`); }
+    }
+    // 日本語：YouTube が字幕を出していたら消す（自分で字幕ボタンから付けた分はそのまま）
+    if (cfg.jaOff && isJa && Date.now() < jaWatchUntil && manualFor !== v && !(subFor === v && subMode !== 'off') && ccOn()) {
+      await main('show', { lang: null });
+      subMode = 'off'; subFor = v;
+      TG.log('字幕', '日本語の動画なので字幕を非表示');
+    }
     paintSubBtn();
   }
   function paintSubBtn() {
@@ -452,6 +526,7 @@ const TGPlayerX = (() => {
       pop.innerHTML = `<div class="h">字幕<button data-c="x">✕</button></div>
         <div class="seg">${[['ja', '日本語'], ['dual', '2か国語（原語＋日本語）'], ['off', 'オフ']].map(([k, l]) => `<button data-sub="${k}" class="${m === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <label class="ck"><input type="checkbox" data-c="autoJa" ${cfg.autoJa ? 'checked' : ''}> 日本語以外の動画は、自動で日本語字幕にする</label>
+        <label class="ck"><input type="checkbox" data-c="jaOff" ${cfg.jaOff ? 'checked' : ''}> 日本語の動画は、字幕を非表示にする</label>
         <p>日本語の字幕が無い動画は、YouTubeの自動翻訳を使います。</p>`;
     } else {
       const on = ab.v === curVid();
@@ -482,7 +557,7 @@ const TGPlayerX = (() => {
       if (i.dataset.adj === 'vol') applyVol(); else applyFilter();
     });
     pop.addEventListener('change', e => {
-      if (e.target.dataset.c === 'autoJa') chrome.storage.local.get('px').then(({ px = {} }) => chrome.storage.local.set({ px: { ...px, autoJa: e.target.checked }, prefsAt: Date.now() }));
+      if (e.target.dataset.c === 'autoJa' || e.target.dataset.c === 'jaOff') { const k = e.target.dataset.c; chrome.storage.local.get('px').then(({ px = {} }) => chrome.storage.local.set({ px: { ...px, [k]: e.target.checked }, prefsAt: Date.now() })); }
     });
     p.appendChild(pop);
   }
@@ -556,16 +631,33 @@ const TGPlayerX = (() => {
       host.after(el);
       metaShown = true;
     }
-    if (cfg.tags && m.kw?.length) {
+    // 投稿者が設定した検索キーワード（隠しタグ）と、概要欄に書かれたハッシュタグ（#〇〇）の両方を出す
+    const kw = m.kw || [];
+    const hs = hashtags(m.desc || '');
+    if (cfg.tags && (kw.length || hs.length)) {
       const desc = document.querySelector('ytd-watch-metadata #description') || document.querySelector('ytd-watch-metadata #bottom-row') || host;
       const el = document.createElement('div');
       el.className = 'tg-tags';
-      el.innerHTML = `<div class="tg-tags-h">🏷 タグ（投稿者が設定した検索キーワード）<small>${m.kw.length}個・押すと検索</small></div>
-        <div class="tg-tags-list">${m.kw.map(k => `<a href="/results?search_query=${encodeURIComponent(k)}">${esc(k)}</a>`).join('')}</div><div class="tg-tags-sugg"></div>`;
+      el.innerHTML = (kw.length ? `<div class="tg-tags-h">🏷 タグ（投稿者が設定した検索キーワード）<small>${kw.length}個・押すと検索</small></div>
+        <div class="tg-tags-list">${kw.map(k => `<a href="/results?search_query=${encodeURIComponent(k)}">${esc(k)}</a>`).join('')}</div>` : '')
+        + (hs.length ? `<div class="tg-tags-h tg-tags-h2"># 概要欄のハッシュタグ<small>${hs.length}個・押すとハッシュタグのページ</small></div>
+        <div class="tg-tags-list tg-tags-hash">${hs.map(h => `<a href="/hashtag/${encodeURIComponent(h)}">#${esc(h)}</a>`).join('')}</div>` : '')
+        + '<div class="tg-tags-sugg"></div>';
       desc.after(el);
       metaShown = true;
-      suggestFolder(el.querySelector('.tg-tags-sugg'), m.kw, document.querySelector('ytd-watch-metadata h1')?.textContent || '');
+      suggestFolder(el.querySelector('.tg-tags-sugg'), [...kw, ...hs], document.querySelector('ytd-watch-metadata h1')?.textContent || '');
     }
+  }
+  // 概要欄のハッシュタグ（「#PR#キャラぶ」のように続けて書かれたものも分ける）。URLの中の # は除く
+  function hashtags(text) {
+    const out = [];
+    const t = String(text).replace(/https?:\/\/\S+/g, ' ');
+    for (const m of t.matchAll(/[#＃]([^\s#＃、。，,.!！?？「」『』（）()【】\[\]<>"'`/\\|]+)/gu)) {
+      const h = m[1].replace(/[・ー~〜]+$/u, '');
+      if (h && !/^\d+$/.test(h) && !out.includes(h)) out.push(h);
+      if (out.length >= 30) break;
+    }
+    return out;
   }
   // タグとタイトルを、フォルダのキーワード（振り分け補助）と照らし合わせて候補を出す
   async function suggestFolder(box, kw, title) {
@@ -616,12 +708,31 @@ const TGPlayerX = (() => {
     }
     return out;
   }
+  // 関連動画の欄（画面が狭いと YouTube はこれを動画の下へ移すので、見えている方を使う）
+  function sideHost() {
+    const vis = el => el && el.getClientRects().length > 0;
+    const rel = document.querySelector('ytd-watch-flexy:not([hidden]) #related');
+    if (vis(rel)) return rel;
+    const inner = document.querySelector('ytd-watch-flexy:not([hidden]) #secondary-inner');
+    if (vis(inner)) return inner;
+    const below = document.querySelector('ytd-watch-flexy:not([hidden]) #below');
+    return vis(below) ? below : null;
+  }
+  // 再生画面を離れたら片付ける（戻るボタンでホームに出てしまわないように）
+  function clearSide() {
+    document.getElementById('tg-nth')?.remove();
+    document.getElementById('tg-echo')?.remove();
+    nthFor = null;
+  }
   async function showNth(force) {
     const v = curVid();
     let box = document.getElementById('tg-nth');
     if (!cfg.nth || !v) { box?.remove(); return; }
-    const host = document.querySelector('ytd-watch-flexy #secondary #related, ytd-watch-flexy #secondary-inner, #secondary');
-    if (!host || (nthFor === v && box && host.contains(box) && !force) || nthBusy) return;
+    const host = sideHost();
+    if (!host) return;
+    // 同じ動画のまま画面の幅が変わって置き場所が移ったら、作り直さずに移すだけ
+    if (box && box.dataset.v === v && !force && !host.contains(box)) { host.prepend(box); document.getElementById('tg-echo') && host.prepend(document.getElementById('tg-echo')); return; }
+    if ((nthFor === v && box && host.contains(box) && !force) || nthBusy) return;
     if (!box || !host.contains(box)) { box?.remove(); box = document.createElement('div'); box.id = 'tg-nth'; host.prepend(box); }
     if (nthFor === v && !force && box.dataset.v === v) return;
     nthFor = v; nthBusy = true;
@@ -686,9 +797,10 @@ const TGPlayerX = (() => {
   function ensureEcho() {
     const v = curVid();
     let box = document.getElementById('tg-echo');
-    const host = document.querySelector('ytd-watch-flexy #secondary #related, ytd-watch-flexy #secondary-inner, #secondary');
-    if (!cfg.echo || !v || !host) { box?.remove(); return; }
-    if (box && host.contains(box) && box.dataset.v === v) return;
+    const host = sideHost();
+    if (!cfg.echo || !v) { box?.remove(); return; }
+    if (!host) return;
+    if (box && box.dataset.v === v) { if (!host.contains(box)) host.prepend(box); return; } // 結果を出したままで移す
     box?.remove();
     box = document.createElement('div');
     box.id = 'tg-echo';
@@ -714,7 +826,11 @@ const TGPlayerX = (() => {
     if (!p || p.querySelector('.tg-px-rem')) return;
     const d = document.createElement('div');
     d.className = 'tg-px-rem ' + kind;
-    d.innerHTML = `<div class="tg-px-rem-t">${html}</div><div class="tg-px-rem-b"><button data-r="pause">⏸ 一時停止する</button><button data-r="later">あと${later}分</button><button data-r="x">閉じる</button></div>`;
+    // 就寝：延長する時間を選べる（初期 30分・1時間も）
+    const ext = kind === 'bed'
+      ? `<select class="tg-px-rem-sel" title="延長する時間">${[[15, '15分'], [30, '30分'], [60, '1時間']].map(([m, l]) => `<option value="${m}" ${m === 30 ? 'selected' : ''}>${l}</option>`).join('')}</select><button data-r="ext">延長する</button>`
+      : `<button data-r="later">あと${later}分</button>`;
+    d.innerHTML = `<div class="tg-px-rem-t">${html}</div><div class="tg-px-rem-b"><button data-r="pause">⏸ 一時停止する</button>${ext}<button data-r="x">閉じる</button></div>`;
     ['mousedown', 'mouseup', 'dblclick', 'click', 'keydown'].forEach(t => d.addEventListener(t, e => e.stopPropagation()));
     d.addEventListener('click', e => {
       const b = e.target.closest('[data-r]');
@@ -722,7 +838,11 @@ const TGPlayerX = (() => {
       const r = b.dataset.r;
       if (r === 'pause') { video()?.pause(); if (kind === 'brk') cont = 0; }
       if (kind === 'brk') nextBrk = cont + (r === 'later' ? later : cfg.brk) * 60;
-      else nextBed = Date.now() + (r === 'later' ? later : 30) * 60e3;
+      else {
+        const m = r === 'ext' ? +(d.querySelector('.tg-px-rem-sel')?.value || 30) : 30;
+        nextBed = Date.now() + m * 60e3;
+        if (r === 'ext') TG.log('リマインダー', `就寝のお知らせを ${m} 分延長`);
+      }
       d.classList.add('out');
       setTimeout(() => d.remove(), 400);
     });
@@ -753,9 +873,10 @@ const TGPlayerX = (() => {
   function tick() {
     const now = Date.now(), dt = Math.min(5, (now - lastT) / 1000);
     lastT = now;
-    if (!curVid()) { setMini(false); return; }
+    if (!curVid()) { setMini(false); clearSide(); return; }
     applyRate().catch(() => {});
     ensureSeek();
+    applyBars();
     ensureChBtn();
     ensureTools();
     applySkip();
@@ -771,7 +892,7 @@ const TGPlayerX = (() => {
     checkRemind(dt);
   }
   setInterval(tick, 1000);
-  document.addEventListener('yt-navigate-finish', () => { rateFor = null; document.querySelector('.tg-px-chpop')?.remove(); setTimeout(tick, 300); });
+  document.addEventListener('yt-navigate-finish', () => { if (!curVid()) clearSide(); rateFor = null; document.querySelector('.tg-px-chpop')?.remove(); setTimeout(tick, 300); });
   // 冒頭スキップは読み込み直後に素早く
   document.addEventListener('loadedmetadata', e => { if (e.target === video()) setTimeout(applySkip, 50); }, true);
   return { tick };

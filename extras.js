@@ -18,11 +18,10 @@ const TGX = (() => {
     await chrome.storage.local.set({ checkLock: now });
     try {
       const list = await YTAPI.subsFeed({ maxPages: 8, maxAge: NEW_DAYS * 864e5 });
-      const recent = list.slice(0, 900).map(x => ({ v: x.v, t: x.t, p: x.p, d: x.dur || 0, k: x.chKey, id: x.chId, n: x.chName, w: x.w || 0, live: !!x.live, ...(x.upcoming ? { up: x.upcoming } : {}) }));
+      const recent = list.slice(0, 900).map(x => ({ v: x.v, t: x.t, p: x.p, d: x.dur || 0, k: x.chKey, id: x.chId, n: x.chName, w: x.w || 0, live: !!x.live, ...(x.mo ? { mo: true } : {}), ...(x.upcoming ? { up: x.upcoming } : {}) }));
       await chrome.storage.local.set({ recent, lastCheckAt: Date.now() });
       await notifyNew(recent);
       TG.log('新着', `登録チャンネルの新着を確認：直近${NEW_DAYS}日 ${recent.length}本${force ? '（手動）' : ''}`);
-      importHistory().catch(e => TG.log('履歴', '取り込みに失敗：' + e.message, 'error')); // 1時間に1回まで
       return { count: recent.length };
     } catch (e) {
       TG.log('新着', '新着の確認に失敗：' + e.message, 'error');
@@ -33,10 +32,50 @@ const TGX = (() => {
   }
 
   // ---------- YouTubeの視聴履歴から取り込み（スマホ・テレビなど他の端末で見た分） ----------
-  //   ・見た日と「どこまで見たか(%)」×長さ で視聴時間を推定（src:'yt'）
+  //   ・他の端末で実際に何分見たかは分からないので、ほぼ最後まで（90%以上）見た動画だけ長さぶんを数える（src:'yt'）。
+  //     それより手前の動画は記録には残すが、視聴時間には入れない（数％しか見ていない長い動画・配信で時間が膨らむのを防ぐ）
   //   ・このPCで同じ日に記録した動画は、PCの正確な記録を優先して数えない
   //   ・同じ動画・同じ日は二度数えない（ytHistSeen）
+  // 以前の取り込み（「どこまで見たか(%)×長さ」で数えていた）で膨らんだ時間を、一度だけ直す
+  async function fixImportedHistory() {
+    const st = await chrome.storage.local.get(['history', 'daily', 'dayYt', 'histFix1']);
+    if (st.histFix1) return;
+    const history = st.history || {}, daily = st.daily || {}, dayYt = st.dayYt || {};
+    let n = 0, total = 0;
+    for (const h of Object.values(history)) {
+      if (h.src !== 'yt' || h.short || !h.sec) continue;
+      if (h.d && h.sec >= h.d * 0.9) continue; // ほぼ最後まで見たものはそのまま
+      const rm = h.sec, dk = h.ytDay;
+      h.sec = 0; n++; total += rm;
+      if (dk && daily[dk]) daily[dk] = Math.max(0, daily[dk] - rm);
+      const ck = h.k || (h.ch ? '#' + h.ch : '');
+      if (dk && dayYt[dk]?.[ck]) dayYt[dk][ck] = Math.max(0, dayYt[dk][ck] - rm);
+    }
+    await chrome.storage.local.set({ history, daily, dayYt, histFix1: Date.now() });
+    if (n) TG.log('履歴', `他の端末の履歴から推定していた視聴時間を直しました：${n}本・${Math.round(total / 60)}分を除外（90%未満の動画）`);
+  }
+  // YouTube の履歴からの取り込みはやめた（このPCで実際に再生した時間だけを数える）。
+  // 以前取り込んだ分（他の端末の推定時間）は、視聴時間から外す（一度だけ）
+  async function dropImportedHistory() {
+    const st = await chrome.storage.local.get(['history', 'daily', 'dayYt', 'histFix2']);
+    if (st.histFix2) return;
+    const history = st.history || {}, daily = st.daily || {}, dayYt = st.dayYt || {};
+    let n = 0, total = 0;
+    for (const h of Object.values(history)) {
+      if (h.src !== 'yt' || !h.sec) continue;
+      const rm = h.sec, dk = h.ytDay;
+      h.sec = 0; n++; total += rm;
+      if (dk && daily[dk]) daily[dk] = Math.max(0, daily[dk] - rm);
+    }
+    await chrome.storage.local.set({ history, daily, ytHistOn: false, histFix2: Date.now() });
+    await chrome.storage.local.remove(['dayYt', 'ytHistSeen', 'lastHistImport']);
+    void dayYt;
+    if (n) TG.log('履歴', `YouTube の履歴から取り込んでいた ${n} 本・${Math.round(total / 60)} 分を視聴時間から外しました（取り込みは終了）`);
+  }
+  fixImportedHistory().then(dropImportedHistory).catch(() => {});
+
   async function importHistory({ force = false } = {}) {
+    return { off: true }; // 取り込みはやめた（正確な時間だけを残すため）
     const now = Date.now();
     const st = await chrome.storage.local.get(['history', 'daily', 'ytHistSeen', 'lastHistImport', 'ytHistOn', 'dayYt']);
     if (st.ytHistOn === false && !force) return { off: true };
@@ -54,7 +93,7 @@ const TGX = (() => {
       if (h && h.src !== 'yt' && TG.dayKey(h.last) === dk) { skippedPc++; continue; } // PCで記録済み
       if (h && (h.last || 0) >= x.day + 864e5) continue; // PCの記録の方が新しい
       const d = x.dur || h?.d || 0;
-      const sec = Math.round(d ? (x.w ? (d * x.w) / 100 : Math.min(d, x.short ? d : 60)) : x.short ? 30 : 60);
+      const sec = Math.round(x.short ? (d || 30) : d && (x.w || 0) >= 90 ? d : 0);
       const last = dk === TG.dayKey(now) ? now : x.day + 12 * 3600e3; // 時刻は分からないので、その日の昼として扱う
       history[x.v] = {
         ...(h || {}),
@@ -207,7 +246,7 @@ const TGX = (() => {
     list.forEach((x, i) => {
       if (have.has(x.v)) return;
       if (laterRemoved[x.v]) { skipped++; return; }
-      add.push({ v: x.v, t: x.t, p: x.p || 0, th: x.thumb || '', n: x.n || 0, ch: { key: x.chKey || '', name: x.chName || '', unsub: false }, at: now - i, wl: true });
+      add.push({ v: x.v, t: x.t, p: x.p || 0, th: x.thumb || '', n: x.n || 0, ch: { key: x.chKey || '', name: x.chName || '', unsub: false }, at: now - i, wl: true, mo: x.mo || undefined });
       added++;
     });
     if (added) await chrome.storage.local.set({ later: add.concat(later).slice(0, 1000) });
@@ -296,7 +335,11 @@ const TGX = (() => {
   // ---------- 終わる30秒前に「次に見る動画」4本 ----------
   //   1本目：TubeFolioの連続再生中なら次の動画 ／ YouTubeの再生リストで見ているならリストの次の動画
   //   2本目以降：TubeFolioの「後で見る」からランダム（無ければYouTubeのおすすめ＝関連動画）
-  //   出す場面（pickMode）：'auto'＝TubeFolioの後で見る・連続再生／YouTubeの再生リストのときだけ（初期・ほかの動画はふつうに再生）
+  //   出す場面（pickMode）：'auto'＝TubeFolioの「後で見る」に入っている動画を見ているときだけ（初期）
+  //       ① 後で見るの動画 → 4本とも後で見るからランダム（連続再生中なら1本目は連続再生の次）
+  //       ② 後で見るの動画を YouTube の再生リストで見ている → 1本目は再生リストの次・2〜4本目は後で見るからランダム
+  //       ③ 後で見るに入っていない動画を再生リストで見ている（②で次へ進んだ等）→ 出さない
+  //       ④ 後で見る以外の動画 → 出さない
   //                         'always'＝いつも ／ 'off'＝出さない
   const PICK_SEC = 30;
   let pickFor = null, pickMode = 'auto';
@@ -307,20 +350,55 @@ const TGX = (() => {
   });
   chrome.storage.onChanged?.addListener(ch => { if (ch.pickMode) pickMode = ch.pickMode.newValue || 'auto'; });
   const listParam = () => new URLSearchParams(location.search).get('list');
+  // TubeFolioの「後で見る」に入っていた動画（見終わりに近づくと自動で外れるので、一度見えたものは覚えておく）
+  const laterEver = new Set();
+  const noteLater = list => (list || []).forEach(x => x?.v && laterEver.add(x.v));
+  chrome.storage.local.get('later').then(r => noteLater(r.later));
+  chrome.storage.onChanged?.addListener(ch => { if (ch.later) { noteLater(ch.later.newValue); noteLater(ch.later.oldValue); } });
+  try { JSON.parse(sessionStorage.getItem('tgLaterPlay') || '[]').forEach(v => laterEver.add(v)); } catch { /* なし */ }
+  // 後で見るの一覧から開いた動画を、このタブで覚えておく（後で見るから外れても次に見るを出す）
+  document.addEventListener('click', e => {
+    const a = e.target.closest?.('#tg-feed[data-type="later"] a[href*="watch?v="], .tg-later-list a[href*="watch?v="]');
+    const v = (a?.getAttribute('href') || '').match(/[?&]v=([\w-]{11})/)?.[1];
+    if (!v) return;
+    laterEver.add(v);
+    try { const arr = JSON.parse(sessionStorage.getItem('tgLaterPlay') || '[]'); arr.push(v); sessionStorage.setItem('tgLaterPlay', JSON.stringify(arr.slice(-50))); } catch { /* なし */ }
+  }, true);
+  let pickBusy = false, pickClosed = null, pickTry = 0;
   document.addEventListener('timeupdate', e => {
     const vEl = e.target;
     if (vEl.tagName !== 'VIDEO' || pickMode === 'off') return;
-    if (document.querySelector('#movie_player.ad-showing')) return;
+    if (!vEl.closest('#movie_player') || document.querySelector('#movie_player.ad-showing')) return;
     const v = curVid();
+    closePickIfMoved(v);
     if (!v) return;
-    const inQueue = Q?.pick && Q.items.some(x => x.v === v);
+    const inQueue = !!(Q?.pick && Q.items?.some(x => x.v === v));
     const inList = !!listParam();
-    if (!inQueue && !inList && pickMode !== 'always') return;
-    const left = (vEl.duration || 0) - vEl.currentTime;
-    if (!vEl.duration || !isFinite(left) || vEl.duration < 45) return;
-    if (left <= PICK_SEC && left > 0.5 && pickFor !== v) { pickFor = v; showPicker(v, inQueue).catch(() => {}); }
-    if (left > PICK_SEC + 5 && pickFor === v) { pickFor = null; document.getElementById('tg-pick')?.remove(); }
+    const inLater = laterEver.has(v);
+    void inList;
+    if (!inLater && pickMode !== 'always') return; // ③④：後で見るに入っていない動画には出さない
+    const dur = vEl.duration, left = (dur || 0) - vEl.currentTime;
+    if (!dur || !isFinite(dur) || !isFinite(left) || dur < 20) return;
+    const pickSec = Math.min(PICK_SEC, dur * 0.3); // 短い動画は終わりの3割
+    if (left > pickSec + 5) {
+      if (pickFor === v) { pickFor = null; document.getElementById('tg-pick')?.remove(); }
+      if (pickClosed === v) pickClosed = null;
+      return;
+    }
+    // 出ていなければ（YouTubeが作り直して消えたときも）出し直す。✕で閉じた動画は出さない
+    if (left <= pickSec && left > 0.3 && !pickBusy && pickClosed !== v && (pickFor !== v || !document.getElementById('tg-pick')) && Date.now() - pickTry > 3000) {
+      pickFor = v; pickBusy = true; pickTry = Date.now();
+      showPicker(v, inQueue).catch(() => {}).finally(() => { pickBusy = false; });
+    }
   }, true);
+  // 次の動画が再生され始めたら「次に見る動画」を閉じる
+  function closePickIfMoved(v) {
+    const box = document.getElementById('tg-pick');
+    if (box && pickFor && v !== pickFor) { box.remove(); pickFor = null; }
+  }
+  document.addEventListener('play', e => { if (e.target?.tagName === 'VIDEO' && e.target.closest?.('#movie_player')) closePickIfMoved(curVid()); }, true);
+  window.addEventListener('yt-navigate-start', () => { document.getElementById('tg-pick')?.remove(); pickFor = null; });
+  window.addEventListener('yt-navigate-finish', () => closePickIfMoved(curVid()));
   // YouTubeの再生リスト（右側のリスト）で、今の次の動画
   function nextInYtList() {
     const rows = [...document.querySelectorAll('ytd-playlist-panel-renderer #items ytd-playlist-panel-video-renderer')];
@@ -371,7 +449,7 @@ const TGX = (() => {
         <span class="tg-pk-t">${esc(x.t || '')}</span><span class="tg-pk-c">${esc(x.ch || '')}</span></button>`).join('')}</div>`;
     ['click', 'dblclick', 'mousedown', 'mouseup', 'keydown'].forEach(t => box.addEventListener(t, ev => ev.stopPropagation()));
     box.addEventListener('click', ev => {
-      if (ev.target.closest('.tg-pk-x')) { box.remove(); return; }
+      if (ev.target.closest('.tg-pk-x')) { pickClosed = v; box.remove(); return; }
       const b = ev.target.closest('.tg-pk-item');
       if (!b) return;
       const x = out[+b.dataset.k];
@@ -379,6 +457,7 @@ const TGX = (() => {
       else location.assign(x.url || '/watch?v=' + x.v);
     });
     player.appendChild(box);
+    TG.sfx('next'); // 🔔 クイズ正解の音
   }
 
   return { importWatchLater, importHistory, check, newCounts, markSeen, getLater, toggleLater, startQueue, syncQueue, renderQueue, stopQueue };
