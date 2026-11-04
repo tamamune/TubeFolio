@@ -10,7 +10,7 @@
 //   外部への通信は background.js の 'xfetch'（決まったサイトだけ）を通す
 const TGXtra = (() => {
   const esc = TG.esc;
-  const DEF = { cmtName: true, sb: true, rydWarn: true, wb: true, disBadge: true, gh: true, ghYears: 2, wiki: true, out: true, outMin: 120, outCity: '', outLo: 15, outHi: 28 };
+  const DEF = { cmtName: true, sb: true, sbUndo: true, sbHl: true, sbPriv: true, rydWarn: true, wb: true, disBadge: true, gh: true, ghYears: 2, wiki: true, out: true, outMin: 120, outCity: '', outLo: 15, outHi: 28 };
   let cfg = { ...DEF };
   const load = async () => { const { px = {} } = await chrome.storage.local.get('px'); cfg = { ...DEF, ...px }; };
   load();
@@ -25,7 +25,7 @@ const TGXtra = (() => {
     });
   });
 
-  const xfetch = (url, as = 'json') => chrome.runtime.sendMessage({ type: 'xfetch', url, as }).catch(() => null);
+  const xfetch = (url, as = 'json', st = false) => chrome.runtime.sendMessage({ type: 'xfetch', url, as, st }).catch(() => null);
   const player = () => document.querySelector('#movie_player');
   const video = () => player()?.querySelector('video');
   const curVid = () => (location.pathname === '/watch' ? new URLSearchParams(location.search).get('v') : null);
@@ -62,31 +62,146 @@ const TGXtra = (() => {
   }
 
   // ================= ⏩ SponsorBlock =================
-  const SB_CATS = ['sponsor', 'selfpromo', 'interaction', 'intro'];
-  const SB_NAME = { sponsor: 'スポンサー', selfpromo: '宣伝', interaction: '登録のお願い', intro: 'オープニング' };
-  let sb = { v: null, segs: [], loading: false };
+  //   区間は https://sponsor.ajay.app の公開API（有志が登録・データは CC BY-NC-SA 4.0）から取る。コードは使っていない
+  const SB_ALL = ['sponsor', 'selfpromo', 'interaction', 'intro', 'outro', 'preview', 'filler', 'music_offtopic', 'poi_highlight'];
+  const SB_NAME = { sponsor: 'スポンサー', selfpromo: '宣伝', interaction: '登録のお願い', intro: 'オープニング', outro: 'エンディング', preview: '予告・ダイジェスト', filler: '雑談・脱線', music_offtopic: '音楽以外の部分', poi_highlight: 'ハイライト' };
+  const SB_COLOR = { sponsor: '#00d400', selfpromo: '#ffff00', interaction: '#cc00ff', intro: '#00ffff', outro: '#0202ed', preview: '#008fd6', filler: '#7300ff', music_offtopic: '#ff9900', poi_highlight: '#ff1684' };
+  const SB_DEFMODE = { sponsor: 'skip', selfpromo: 'skip', interaction: 'skip', intro: 'skip', outro: 'show', preview: 'show', filler: 'show', music_offtopic: 'show', poi_highlight: 'show' };
+  const sbMode = c => (c === 'poi_highlight' ? (cfg.sbc_poi_highlight === 'off' ? 'off' : 'show') : (cfg['sbc_' + c] || SB_DEFMODE[c] || 'off')); // skip / show / off
+  const mmss = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+  let sb = { v: null, segs: [], loading: false, state: 'loading', ignore: new Set(), manual: -1 }; // state: loading / found / none（登録なし）/ error
+  const sha256hex = async s => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))].map(x => x.toString(16).padStart(2, '0')).join('');
+  const sbVisible = () => sb.segs.filter(g => sbMode(g.c) !== 'off');
+
+  // プレイヤーの中に出す小さな案内（ボタンつき）
+  let toastT = 0;
+  function toast(text, btn, fn, ms) {
+    const p = player();
+    if (!p) return;
+    p.querySelector('.tg-sbtoast')?.remove();
+    clearTimeout(toastT);
+    const d = document.createElement('div');
+    d.className = 'tg-sbtoast';
+    d.dataset.v = curVid() || '';
+    const s = document.createElement('span');
+    s.textContent = text;
+    d.appendChild(s);
+    if (btn) {
+      const b = document.createElement('button');
+      b.textContent = btn;
+      ['mousedown', 'keydown', 'dblclick'].forEach(t => b.addEventListener(t, e => e.stopPropagation()));
+      b.addEventListener('click', e => { e.stopPropagation(); d.remove(); fn(); });
+      d.appendChild(b);
+    }
+    p.appendChild(d);
+    toastT = setTimeout(() => d.remove(), ms);
+  }
+
   async function sbLoad(v) {
-    sb = { v, segs: [], loading: true };
-    const url = `https://sponsor.ajay.app/api/skipSegments?videoID=${encodeURIComponent(v)}&categories=${encodeURIComponent(JSON.stringify(SB_CATS))}`;
-    const r = await xfetch(url);
+    sb = { v, segs: [], loading: true, state: 'loading', ignore: new Set(), manual: -1 };
+    const q = `categories=${encodeURIComponent(JSON.stringify(SB_ALL))}&actionTypes=${encodeURIComponent(JSON.stringify(['skip', 'poi']))}`;
+    let url = null;
+    if (cfg.sbPriv !== false) {
+      try { url = `https://sponsor.ajay.app/api/skipSegments/${(await sha256hex(v)).slice(0, 4)}?${q}`; } catch { url = null; }
+    }
+    const hashed = !!url;
+    if (!url) url = `https://sponsor.ajay.app/api/skipSegments?videoID=${encodeURIComponent(v)}&${q}`;
+    const raw = await xfetch(url, 'json', true);
     if (sb.v !== v) return;
     sb.loading = false;
-    sb.segs = Array.isArray(r) ? r.map(x => ({ s: x.segment[0], e: x.segment[1], c: x.category })).filter(x => x.e - x.s >= 0.5).sort((a, b) => a.s - b.s) : [];
-    if (sb.segs.length) log('SponsorBlock', `${v}：飛ばす区間 ${sb.segs.length} か所（${[...new Set(sb.segs.map(x => SB_NAME[x.c] || x.c))].join('・')}）`);
+    let arr = null; // null＝取得できず
+    if (Array.isArray(raw)) arr = hashed ? (raw.find(x => x.videoID === v)?.segments || []) : raw;
+    else if (raw?._http === 404) arr = [];
+    sb.segs = (arr || []).map(x => ({ s: x.segment[0], e: x.segment[1], c: x.category, poi: x.actionType === 'poi' }))
+      .filter(x => x.poi || (x.e - x.s >= 0.5)).sort((a, b) => a.s - b.s);
+    sb.state = sb.segs.length ? 'found' : arr ? 'none' : 'error';
+    if (sb.segs.length) {
+      log('SponsorBlock', `${v}：登録された区間 ${sb.segs.length} か所（${[...new Set(sb.segs.map(x => SB_NAME[x.c] || x.c))].join('・')}）${hashed ? '' : '・動画IDで照会'}`);
+      const hl = sb.segs.find(g => g.poi && sbMode(g.c) !== 'off');
+      if (hl && cfg.sbHl !== false) toast('⭐ ハイライト（見どころ）が登録されています', `⭐ ${mmss(hl.s)} へ移動`, () => { const e = video(); if (e) e.currentTime = hl.s; }, 8000);
+      else if (sbVisible().length) flash(`⏩ 登録された区間が ${sbVisible().length} か所あります（SponsorBlock）`);
+      const vEl = video();
+      if (vEl && !vEl.paused && !sbRaf) sbCheck();
+    } else log('SponsorBlock', `${v}：${sb.state === 'none' ? '登録なし' : '取得できず'}`);
   }
+
+  // 動画の下の案内と、シークバーの色つきの印（YouTube が描き直しても付け直す）
+  function sbPaint() {
+    const v = curVid();
+    document.querySelectorAll('.tg-sbinfo, .tg-sbmarks, .tg-sbtoast').forEach(e => { if (e.dataset.v !== v) e.remove(); });
+    if (!v || sb.v !== v || sb.state === 'loading') return;
+    const vis = sbVisible();
+    const modeKey = [sb.state, vis.length, cfg.sb, cfg.sbHl, SB_ALL.map(sbMode).join('')].join('|');
+    const host = document.querySelector('ytd-watch-metadata #title');
+    let el = document.querySelector('.tg-sbinfo');
+    if (host && (!el || el.dataset.key !== modeKey)) {
+      el?.remove();
+      el = document.createElement('div');
+      el.dataset.v = v; el.dataset.key = modeKey;
+      el.className = 'tg-sbinfo ' + sb.state;
+      if (sb.state === 'found') {
+        const auto = vis.filter(g => !g.poi && sbMode(g.c) === 'skip').length;
+        const kinds = [...new Set(vis.map(x => SB_NAME[x.c] || x.c))].join('・');
+        const tot = Math.round(vis.filter(g => !g.poi).reduce((a, g) => a + (g.e - g.s), 0));
+        el.textContent = vis.length
+          ? `⏩ SponsorBlock：この動画には ${vis.length} か所の区間が登録されています（${kinds}${tot ? '・合計 ' + tot + '秒' : ''}）。${cfg.sb ? (auto ? `うち ${auto} か所を再生中に自動で飛ばします。` : '自動で飛ばす対象はありません（案内だけ）。') : '※「自動で飛ばす」が設定でオフです。'}`
+          : '⏩ SponsorBlock：区間が登録されていますが、設定で「無視」にしている種類です。';
+        const hl = vis.find(g => g.poi);
+        if (hl && cfg.sbHl !== false) {
+          const b = document.createElement('button');
+          b.className = 'tg-sbhl';
+          b.textContent = `⭐ ハイライトへ移動（${mmss(hl.s)}）`;
+          b.addEventListener('click', () => { const e = video(); if (e) { e.currentTime = hl.s; e.play?.(); } });
+          el.append(' ', b);
+        }
+      } else if (sb.state === 'none') {
+        el.textContent = '⏩ SponsorBlock：この動画には登録がありません（飛ばす区間なし）。日本語の動画は登録が少なめです。';
+      } else el.textContent = '⏩ SponsorBlock：サーバーに接続できず、確認できませんでした。';
+      host.after(el);
+    }
+    // シークバーの印
+    const bar = document.querySelector('#movie_player .ytp-progress-bar');
+    const dur = video()?.duration;
+    if (bar && dur > 0 && isFinite(dur) && sb.state === 'found') {
+      const k = v + ':' + modeKey + ':' + Math.round(dur);
+      let m = bar.querySelector('.tg-sbmarks');
+      if (!m || m.dataset.k !== k) {
+        m?.remove();
+        m = document.createElement('div');
+        m.className = 'tg-sbmarks'; m.dataset.v = v; m.dataset.k = k;
+        m.innerHTML = vis.map(g => `<i style="left:${(g.s / dur * 100).toFixed(3)}%;width:${g.poi ? 0.4 : Math.max(0.2, (g.e - g.s) / dur * 100).toFixed(3)}%;background:${SB_COLOR[g.c] || '#0f0'}" title="${SB_NAME[g.c] || g.c}"></i>`).join('');
+        bar.appendChild(m);
+      }
+    }
+  }
+
   let sbRaf = 0;
   function sbCheck() {
     sbRaf = 0;
     const vEl = video();
-    if (!cfg.sb || !vEl || !sb.segs.length || adShowing() || sb.v !== curVid()) return;
+    if (!vEl || !sb.segs.length || adShowing() || sb.v !== curVid()) return;
     const t = vEl.currentTime;
-    for (const g of sb.segs) {
-      if (t >= g.s && t < g.e - 0.2) {
+    let manual = -1;
+    for (let i = 0; i < sb.segs.length; i++) {
+      const g = sb.segs[i];
+      if (g.poi || sb.ignore.has(i)) continue;
+      const m = sbMode(g.c);
+      if (m === 'off' || !(t >= g.s && t < g.e - 0.2)) continue;
+      if (m === 'skip' && cfg.sb) {
         vEl.currentTime = Math.min(g.e, (vEl.duration || g.e) - 0.1);
-        flash(`⏩ ${SB_NAME[g.c] || g.c}を飛ばしました（${Math.round(g.e - g.s)}秒）`);
+        const msg = `⏩ ${SB_NAME[g.c] || g.c}を飛ばしました（${Math.round(g.e - g.s)}秒）`;
+        if (cfg.sbUndo !== false) toast(msg, '↩ 戻す', () => { sb.ignore.add(i); const e = video(); if (e) e.currentTime = g.s; }, 6000);
+        else flash(msg);
         break;
       }
+      manual = i; // 案内だけ：区間にいる間、「飛ばす」ボタンを出す
+      break;
     }
+    if (manual >= 0 && manual !== sb.manual) {
+      const g = sb.segs[manual];
+      toast(`${SB_NAME[g.c] || g.c}の区間です`, '⏩ 飛ばす', () => { sb.ignore.add(manual); const e = video(); if (e) e.currentTime = Math.min(g.e, (e.duration || g.e) - 0.1); }, Math.max(2000, (g.e - t) * 1000));
+    } else if (manual < 0 && sb.manual >= 0) document.querySelector('.tg-sbtoast')?.remove();
+    sb.manual = manual;
     if (!vEl.paused) sbRaf = requestAnimationFrame(sbCheck); // 再生中は毎フレーム確認（区間に入った瞬間に飛ばす）
   }
   document.addEventListener('playing', e => { if (e.target === video() && !sbRaf) sbRaf = requestAnimationFrame(sbCheck); }, true);
@@ -421,9 +536,10 @@ const TGXtra = (() => {
     const v = curVid();
     if (!v) { lastV = null; document.getElementById('tg-wiki')?.remove(); return; }
     keepWiki();
+    sbPaint();
     if (v !== lastV) {
       lastV = v;
-      if (cfg.sb) sbLoad(v); else sb = { v, segs: [] };
+      sbLoad(v); // 飛ばす設定がオフでも、対象かどうかの案内のために調べる
       rydWarn(v);
       // 動画の情報が読めるまで少し待つ
       let m = null;

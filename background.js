@@ -447,7 +447,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     const OK = ['sponsor.ajay.app', 'api.github.com', 'ja.wikipedia.org', 'api.open-meteo.com', 'geocoding-api.open-meteo.com', 'ipapi.co', 'archive.org'];
     if (u.protocol !== 'https:' || !OK.includes(u.hostname)) { reply(null); return; }
     fetch(u.href, { credentials: 'omit', headers: u.hostname === 'api.github.com' ? { Accept: 'application/vnd.github+json' } : {} })
-      .then(r => (r.ok ? (msg.as === 'text' ? r.text() : r.json()) : null)).then(reply, () => reply(null));
+      .then(r => (r.ok ? (msg.as === 'text' ? r.text() : r.json()) : (msg.st ? { _http: r.status } : null))).then(reply, () => reply(null));
     return true;
   }
   if (msg?.type === 'translate') {

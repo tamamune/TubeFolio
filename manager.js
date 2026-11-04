@@ -1688,7 +1688,7 @@ const TGManager = (() => {
     const chList = [...chRows.values()].map(({ name, c, keys }) => `<div class="cm-row px-chrow"><span>${esc(name)}<em class="px-em">${[c.s > 0 ? `冒頭 ${c.s}秒` : '', c.e > 0 ? `最後 ${c.e}秒` : '', c.mid ? 'サムネ：途中の画面' : ''].filter(Boolean).join('・')}</em></span>
       <button class="icon" data-act="chset-del" data-keys="${esc(keys.join('\n'))}" title="この設定を消す">✕</button></div>`).join('');
     const fopen = { on: true, type: 'new', ...((await chrome.storage.local.get('fOpen')).fOpen || {}) };
-    const px = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, adFast: true, antiTr: true, speak: false, speakRate: 1.2, speakDuck: 15, speakHide: false, saver: false, exact: true, tags: true, nth: true, echo: true, hoverSound: true, hoverVol: 30, hoverFast: true, feedPreview: true, shortsTime: true, sb: true, rydWarn: true, disBadge: true, wb: true, gh: true, ghYears: 2, wiki: true, out: true, outMin: 120, outCity: '', pvMode: 'old', pvScale: 0.25, colMin: 3, colMax: 7, jaOff: true, cmtName: true, seekOp: 40, frameBtn: true, alwaysProg: false, alwaysCtl: false, sfx: true, sfx_chapter: true, sfx_next: true, sfxVol: 50, ...(xr.px || {}) };
+    const px = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, adFast: true, antiTr: true, sbUndo: true, sbHl: true, sbPriv: true, sbc_sponsor: "skip", sbc_selfpromo: "skip", sbc_interaction: "skip", sbc_intro: "skip", sbc_outro: "show", sbc_preview: "show", sbc_filler: "show", sbc_music_offtopic: "show", sbc_poi_highlight: "show", speak: false, speakRate: 1.2, speakDuck: 15, speakHide: false, saver: false, exact: true, tags: true, nth: true, echo: true, hoverSound: true, hoverVol: 30, hoverFast: true, feedPreview: true, shortsTime: true, sb: true, rydWarn: true, disBadge: true, wb: true, gh: true, ghYears: 2, wiki: true, out: true, outMin: 120, outCity: '', pvMode: 'old', pvScale: 0.25, colMin: 3, colMax: 7, jaOff: true, cmtName: true, seekOp: 40, frameBtn: true, alwaysProg: false, alwaysCtl: false, sfx: true, sfx_chapter: true, sfx_next: true, sfxVol: 50, ...(xr.px || {}) };
     const rates = xr.folderRates || {}, slp = { on: true, from: '23:00', to: '07:00', ...(xr.sleepWin || {}) };
     const pxRow = (label, key, opts) => `<div class="cm-row"><span>${label}</span><div class="cm-seg">${opts.map(([v, t]) =>
       `<button data-act="pxset" data-k="${key}" data-v="${v}" class="${String(px[key]) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</div></div>`;
@@ -1765,8 +1765,14 @@ const TGManager = (() => {
       <p class="bk-note">ショートを見ているときは、横の空いた場所に「ショートを見続けている時間」（次のショートへ移っても続けて数える）と、その時間を足し上げた今日のショートの合計を出します（TubeFolio の一覧でショートをプレビューした時間も含む）。</p>
       ${pxRow('ショートの時間表示', 'shortsTime', [['true', '表示'], ['false', '非表示']])}
       <div class="bk-h cm-h">⏩ スポンサー・茶番を飛ばす（SponsorBlock）</div>
-      <p class="bk-note">有志が登録したスキップ区間（スポンサー・宣伝・チャンネル登録のお願い・オープニング）に来た瞬間に飛ばして、本編だけを見ます。</p>
-      ${pxRow('自動で飛ばす', 'sb', [['true', 'オン'], ['false', 'オフ']])}
+      <p class="bk-note">有志が登録した区間（スポンサー・宣伝・オープニングなど）を、動画の下の案内とシークバーの色で知らせます。区間の種類ごとに「自動で飛ばす」「案内だけ（区間に入るとボタンを出す）」「無視」を選べます。日本語の動画は登録が少なめです。</p>
+      ${pxRow('自動で飛ばす（全体のオン/オフ）', 'sb', [['true', 'オン'], ['false', 'オフ']])}
+      ${pxRow('飛ばしたあとの「↩ 戻す」ボタン', 'sbUndo', [['true', '表示'], ['false', '非表示']])}
+      ${pxRow('「⭐ ハイライトへ移動」ボタン', 'sbHl', [['true', '表示'], ['false', '非表示']])}
+      ${pxRow('プライバシー保護（動画IDを送らない）', 'sbPriv', [['true', 'オン'], ['false', 'オフ']])}
+      <p class="bk-note">プライバシー保護：動画のIDそのものではなく、そのハッシュの先頭4文字だけを送って区間を調べます（そのぶん通信量は少し増えます）。</p>
+      ${[['sponsor', 'スポンサー'], ['selfpromo', '宣伝'], ['interaction', '登録のお願い'], ['intro', 'オープニング'], ['outro', 'エンディング'], ['preview', '予告・ダイジェスト'], ['filler', '雑談・脱線'], ['music_offtopic', '音楽以外の部分']].map(([k, l]) => pxRow(l, 'sbc_' + k, [['skip', '自動で飛ばす'], ['show', '案内だけ'], ['off', '無視']])).join('')}
+      ${pxRow('ハイライト（見どころ）', 'sbc_poi_highlight', [['show', '表示'], ['off', '無視']])}
       <div class="bk-h cm-h">👎 低評価率（Return YouTube Dislike）</div>
       <p class="bk-note">推定の低評価率です。再生時の警告は 30% 以上のときだけ出します。サムネの表示はホーム右下・検索の「👎 低評価率」ボタンでも切り替えられます。</p>
       ${pxRow('再生時の警告（30% 以上）', 'rydWarn', [['true', '表示'], ['false', '非表示']])}
