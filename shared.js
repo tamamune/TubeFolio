@@ -285,7 +285,8 @@ const TG = {
   },
 
   // 視聴記録・視聴済み・後で見るは置き換えずに合体（このPCの分が消えない）。設定は上書き
-  async mergeAux(aux) {
+  //   opts.forcePrefs: 手動の読み込みでは、時刻にかかわらずDriveの設定を反映する
+  async mergeAux(aux, opts = {}) {
     if (!aux) return;
     const keys = Object.values(TG.AUX).flat();
     const L = await chrome.storage.local.get(keys);
@@ -364,9 +365,9 @@ const TG = {
     }
     // 設定は、Drive側の方が新しく変更されているときだけ反映（このPCで変えたばかりの設定を古い値で戻さない）
     let prefsApplied = false;
-    if (aux.prefs && (aux.prefs.prefsAt || 0) >= (L.prefsAt || 0)) {
+    if (aux.prefs && (opts.forcePrefs || (aux.prefs.prefsAt || 0) >= (L.prefsAt || 0))) {
       Object.assign(set, aux.prefs);
-      set.prefsAt = aux.prefs.prefsAt || L.prefsAt || 0;
+      set.prefsAt = aux.prefs.prefsAt || L.prefsAt || Date.now();
       prefsApplied = true;
     }
     if (Object.keys(set).length) await chrome.storage.local.set(set);
@@ -448,7 +449,7 @@ const TG = {
     return b;
   },
 
-  async importData(data) {
+  async importData(data, opts = {}) {
     if (!data || ![TG.APP, TG.LEGACY_APP].includes(data.app) || typeof data.channels !== 'object' || !Array.isArray(data.folders)) {
       throw new Error('TubeFolioのバックアップファイルではありません');
     }
@@ -458,7 +459,7 @@ const TG = {
     if (data.meta) set.meta = data.meta;
     for (const [k, v] of Object.entries(data.settings || {})) if (v !== undefined && v !== null) set[k] = v;
     await chrome.storage.local.set(set);
-    await TG.mergeAux(data.aux);
+    await TG.mergeAux(data.aux, opts);
     return { channels: Object.keys(set.channels).length, folders: set.folders.length };
   },
 

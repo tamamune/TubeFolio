@@ -131,7 +131,7 @@ async function pull(interactive) {
   TG.log('同期', `Driveから読み込み（手動）：${describe(data)}`);
   data._reason = 'Driveから読み込む前の状態';
   data.aux = pickAux(data.aux, await getSync());
-  const r = await TG.importData(data);
+  const r = await TG.importData(data, { forcePrefs: true }); // 手動はDriveの設定を必ず反映
   await setSync({ syncedSavedAt: data.savedAt, lastSyncAt: Date.now(), lastError: '' });
   return r;
 }

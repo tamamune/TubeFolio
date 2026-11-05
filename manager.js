@@ -41,14 +41,25 @@ const TGManager = (() => {
     { id: 'old', label: '1年以上', max: Infinity, color: '#991b1b' },
     { id: 'none', label: '動画なし・未取得', max: null, color: '#6b7280' }
   ];
-  const bucketOf = m => {
-    if (!m?.last) return BUCKETS[6];
-    const d = (Date.now() - m.last) / 864e5;
+  // 動画・ショート・ライブのうち一番新しい投稿日
+  const anyOf = m => m?.any || m?.last || null;
+  const KINDS = [['video', '動画'], ['short', 'ショート'], ['live', 'ライブ']];
+  // 種類ごとの最終投稿日（kind が空なら3種類のうち一番新しいもの）
+  const timeOf = (m, kind) => kind === 'video' ? m?.last || null : kind === 'short' ? m?.lastShort || null : kind === 'live' ? m?.lastLive || null : anyOf(m);
+  const bucketAt = t => {
+    if (!t) return BUCKETS[6];
+    const d = (Date.now() - t) / 864e5;
+    return BUCKETS.find(b => b.max !== null && d <= b.max);
+  };
+  const bucketOf = (m, kind = st.kind) => {
+    const t = timeOf(m, kind);
+    if (!t) return BUCKETS[6];
+    const d = (Date.now() - t) / 864e5;
     return BUCKETS.find(b => b.max !== null && d <= b.max);
   };
   const esc = TG.esc;
   // 取り直しが必要なもの：未取得・失敗・日付が読めなかった・旧版で「ショートのみ」と判定したもの
-  const isMissing = m => !m?.last && (!m?.shortsOnly || !m.v2);
+  const isMissing = m => !anyOf(m) && (!m?.shortsOnly || !m.v2);
 
   function freq(iv) {
     if (iv == null || !isFinite(iv) || iv <= 0) return '';
@@ -84,7 +95,7 @@ const TGManager = (() => {
     if (TG.dedupe(d)) await TG.saveData({ channels: d.channels, folders: d.folders }); // 過去にできた重複をまとめる
     st = {
       channels: structuredClone(d.channels), folders: structuredClone(d.folders), meta: d.meta,
-      view, bucket: null, q: '', sort: 'recent', sel: new Set(), saving: false, savedAt,
+      view, bucket: null, kind: '', q: '', sort: 'recent', sel: new Set(), saving: false, savedAt,
       progress: '', shown: [], busy: false, bulkFolder: null, pop: null,
       thumbMode: (await chrome.storage.local.get('mgrThumbs')).mgrThumbs || 'none',
       thumbCount: (await chrome.storage.local.get('mgrThumbCount')).mgrThumbCount || 4,
@@ -239,8 +250,8 @@ const TGManager = (() => {
         <div class="toolbar">
           <input class="search" placeholder="チャンネル名で検索">
           <select class="sort">
-            <option value="recent">最終投稿が新しい順</option>
-            <option value="old">最終投稿が古い順</option>
+            <option value="recent">最終投稿（動画・ショート・ライブ）が新しい順</option>
+            <option value="old">最終投稿（動画・ショート・ライブ）が古い順</option>
             <option value="freq">投稿頻度が高い順</option>
             <option value="name">名前順</option>
           </select>
@@ -522,16 +533,19 @@ const TGManager = (() => {
     const counts = Object.fromEntries(BUCKETS.map(b => [b.id, 0]));
     viewChannels().forEach(c => counts[bucketOf(st.meta[c.key]).id]++);
     let shortsN = 0, missN = 0;
-    viewChannels().forEach(c => { const m = st.meta[c.key]; if (!m?.last) { if (isMissing(m)) missN++; else shortsN++; } });
+    viewChannels().forEach(c => { const m = st.meta[c.key]; if (!anyOf(m)) { if (isMissing(m)) missN++; else shortsN++; } });
+    const kn = (KINDS.find(k => k[0] === st.kind) || [])[1];
     q('.stats').innerHTML = BUCKETS.map(b =>
       `<button class="card ${st.bucket === b.id ? 'on' : ''}" data-act="bucket" data-b="${b.id}">
-        <span class="lb"><i class="dot" style="background:${b.color}"></i>${b.label}</span>
+        <span class="lb"><i class="dot" style="background:${b.color}"></i>${b.id === 'none' && kn ? kn + 'なし・未取得' : b.label}</span>
         <span class="n">${counts[b.id]}</span>
-        ${b.id === 'none' && counts.none ? `<span class="sub">ショートのみ ${shortsN}・未取得 ${missN}</span>` : ''}</button>`).join('');
+        ${b.id === 'none' && counts.none && !st.kind ? `<span class="sub">ショートのみ ${shortsN}・未取得 ${missN}</span>` : ''}</button>`).join('')
+      + `<div class="kinds" title="押した種類の最終投稿日で数えます（もう一度押すと全部）">${KINDS.map(([k, n]) =>
+        `<button class="kind ${st.kind === k ? 'on' : ''}" data-act="kind" data-k="${k}">${n}</button>`).join('')}</div>`;
   }
 
   function sorted(list) {
-    const L = c => st.meta[c.key]?.last;
+    const L = c => timeOf(st.meta[c.key], st.kind);
     const IV = c => st.meta[c.key]?.interval;
     const by = {
       recent: (a, b) => (L(b) || 0) - (L(a) || 0),
@@ -546,8 +560,9 @@ const TGManager = (() => {
     const m = st.meta[c.key];
     const b = bucketOf(m);
     let h = `<span class="badge"><i class="dot" style="background:${b.color}"></i>${b.label}</span>`;
-    if (m?.last) {
-      h += `<span>最終投稿 ${TG.rel(m.last)}</span>`;
+    if (anyOf(m)) {
+      const part = (n, t) => { if (!t) return `<span class="kb none"><i class="dot" style="background:${BUCKETS[6].color}"></i>${n} なし</span>`; const bk = bucketAt(t); return `<span class="kb ${t === anyOf(m) ? 'newest' : ''}" title="最終投稿 ${TG.rel(t)}"><i class="dot" style="background:${bk.color}"></i>${n} ${bk.label}<small>${TG.rel(t)}</small></span>`; };
+      h += part('動画', m.last) + part('ショート', m.lastShort) + part('ライブ', m.lastLive);
       if (m.interval != null) h += `<span class="fq">${freq(m.interval)}</span>`;
     } else {
       h += `<span class="${m?.error ? 'errtxt' : ''}">${m?.shortsOnly && m.v2 ? `ショートのみ（${m.count}本・投稿日は取得できません）` : m?.nodate ? '投稿日を読み取れませんでした（再取得します）' : m?.error ? '取得失敗（「未取得だけ取得」で再取得）' : m?.at ? '動画なし' : '未取得'}</span>`;
@@ -1167,6 +1182,10 @@ const TGManager = (() => {
         st.view = el.dataset.v; st.bucket = null; st.sel.clear(); st.rendered = 0;
         q('main').scrollTop = 0;
         return renderAll();
+      case 'kind':
+        st.kind = st.kind === el.dataset.k ? '' : el.dataset.k;
+        st.rendered = 0;
+        renderStats(); return renderList();
       case 'bucket':
         st.bucket = st.bucket === el.dataset.b ? null : el.dataset.b;
         st.rendered = 0;
@@ -1423,7 +1442,7 @@ const TGManager = (() => {
         const data = JSON.parse(await file.text());
         if (!confirm(`「${file.name}」の内容で、今のフォルダ設定を置き換えますか？`)) return;
         flush();
-        const r = await TG.importData(data);
+        const r = await TG.importData(data, { forcePrefs: true });
         await reloadState();
         setProgress(`インポートしました（チャンネル ${r.channels} 件・フォルダ ${r.folders} 件）`);
       } catch (e) {
@@ -2017,7 +2036,7 @@ const TGManager = (() => {
     const queue = Object.values(st.channels).filter(c => {
       const m = st.meta[c.key];
       if (force === 'missing') return isMissing(m);
-      return force || !m || Date.now() - (m.at || 0) > STALE;
+      return force || !m || !m.v3 || Date.now() - (m.at || 0) > STALE; // v3＝ショート・ライブの日付も取得済み
     });
     const total = queue.length;
     let done = 0, unsaved = 0, lastPaint = 0, idChanged = false;
@@ -2031,11 +2050,11 @@ const TGManager = (() => {
           const r = await YTAPI.fetchMeta(c, signal);
           if (r.id && !c.id) { c.id = r.id; idChanged = true; }
           const old = st.meta[c.key];
-          if (!r.last && old?.last && !r.shortsOnly) {
+          if (!r.any && !r.last && anyOf(old) && !r.shortsOnly) {
             // 取り直して日付が読めなかったときは、前の値を残す（悪化させない）
             st.meta[c.key] = { ...old, at: Date.now(), ...(r.error || r.nodate ? { retry: true } : {}) };
           } else {
-            st.meta[c.key] = { last: r.last, interval: r.interval, count: r.count, at: Date.now(),
+            st.meta[c.key] = { last: r.last, lastShort: r.lastShort || null, lastLive: r.lastLive || null, any: r.any || r.last || null, v3: true, interval: r.interval, count: r.count, at: Date.now(),
               ...(r.shortsOnly ? { shortsOnly: true, v2: true } : {}), ...(r.error ? { error: true } : {}), ...(r.nodate ? { nodate: true } : {}) };
           }
         } catch {
@@ -2178,6 +2197,14 @@ const TGManager = (() => {
   .meta{display:flex;gap:10px;align-items:center;font-size:12px;color:var(--muted);margin:5px 0 8px;flex-wrap:wrap}
   .badge{display:inline-flex;align-items:center;gap:5px;background:var(--card2);color:var(--fg);border-radius:6px;padding:2px 8px;font-weight:600}
   .badge .dot{margin:0}
+  .newest{font-weight:600}
+  .kb{display:inline-flex;align-items:center;gap:5px}
+  .kb small{color:var(--muted);font-size:11px;font-weight:400}
+  .kb .dot{margin-top:0}
+  .kb.none{color:var(--muted)}
+  .kinds{display:flex;gap:4px;align-self:flex-start;margin-left:8px}
+  .kind{padding:6px 14px;border-radius:999px;font-size:12px}
+  .kind.on{border-color:var(--fg);font-weight:600}
   .fq{color:#9ec5ff}
   .app.light .fq{color:#065fd4}
   .unsubtag{color:#ff6b6b;font-weight:600}

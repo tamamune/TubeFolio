@@ -202,8 +202,34 @@ const YTAPI = (() => {
     };
   }
 
-  // 最終投稿：チャンネルの「動画」→「ライブ」タブ（内部API）。どちらも無ければ「ショート」の有無を確認
-  //   戻り値: { id, last, interval, count, shortsOnly?, error? }
+  // ショートの最終投稿日：「ショート」タブには日付が無いので、RSS（ショートのURLの項目）→ 動画ページの順で調べる
+  async function shortDate(id, shorts, signal) {
+    const ids = new Set(shorts.map(x => x.v));
+    try {
+      const r = await fetch('/feeds/videos.xml?channel_id=' + encodeURIComponent(id), { credentials: 'omit', signal });
+      if (r.ok) {
+        const doc = new DOMParser().parseFromString(await r.text(), 'application/xml');
+        let best = 0;
+        for (const e of doc.getElementsByTagName('entry')) {
+          const href = e.getElementsByTagName('link')[0]?.getAttribute('href') || '';
+          const vid = e.getElementsByTagNameNS('*', 'videoId')[0]?.textContent || '';
+          if (/\/shorts\//.test(href) || ids.has(vid)) best = Math.max(best, Date.parse(e.getElementsByTagName('published')[0]?.textContent || '') || 0);
+        }
+        if (best) return best;
+      }
+    } catch (e) { if (signal?.aborted) throw e; }
+    try {
+      const r = await fetch('/watch?v=' + encodeURIComponent(shorts[0].v), { credentials: 'omit', signal });
+      if (r.ok) {
+        const m = (await r.text()).match(/"(?:publishDate|uploadDate)":"([^"]+)"/);
+        return (m && Date.parse(m[1])) || 0;
+      }
+    } catch (e) { if (signal?.aborted) throw e; }
+    return 0;
+  }
+
+  // 最終投稿：チャンネルの「動画」「ライブ」「ショート」それぞれの最終投稿日（内部API）
+  //   戻り値: { id, last(動画), lastLive, lastShort, any(3つのうち最新), interval, count, shortsOnly?, error? }
   async function fetchMeta(ch, signal) {
     let id = ch.id || (ch.key.startsWith('channel/') ? ch.key.slice(8) : null);
     if (!id) id = await resolveId(ch.key, signal);
@@ -211,16 +237,25 @@ const YTAPI = (() => {
     let failed = false;
     try {
       const videos = await channelTab(id, 'video', signal);
-      let list = videos.filter(x => x.p);
-      if (!list.length) list = (await channelTab(id, 'live', signal)).filter(x => x.p && !x.upcoming);
-      if (!list.length && videos.length) return { id, last: null, interval: null, count: videos.length, nodate: true };
+      const vlist = videos.filter(x => x.p);
+      let live = [];
+      try { live = (await channelTab(id, 'live', signal)).filter(x => x.p && !x.upcoming); } catch (e) { if (signal?.aborted) throw e; }
+      let shorts = [];
+      try { shorts = await channelTab(id, 'short', signal); } catch (e) { if (signal?.aborted) throw e; }
+      let lastShort = null;
+      if (shorts.length) { try { lastShort = (await shortDate(id, shorts, signal)) || null; } catch (e) { if (signal?.aborted) throw e; } }
+      const lastLive = live.length ? Math.max(...live.map(x => x.p)) : null;
+      // 動画が無ければライブを投稿間隔の計算に使う（従来どおり）
+      const list = vlist.length ? vlist : live;
+      const last = vlist.length ? Math.max(...vlist.map(x => x.p)) : null;
+      const any = Math.max(last || 0, lastLive || 0, lastShort || 0) || null;
       if (list.length) {
         const ds = list.map(x => x.p).sort((a, b) => b - a);
         const iv = ds.length > 1 ? (ds[0] - ds[ds.length - 1]) / (ds.length - 1) / 864e5 : null;
-        return { id, last: ds[0], interval: iv > 0 ? iv : null, count: ds.length };
+        return { id, last: last || ds[0], lastLive, lastShort, any, interval: iv > 0 ? iv : null, count: ds.length };
       }
-      const shorts = await channelTab(id, 'short', signal);
-      if (shorts.length) return { id, last: null, interval: null, count: shorts.length, shortsOnly: true };
+      if (!any && videos.length) return { id, last: null, interval: null, count: videos.length, nodate: true };
+      if (shorts.length) return { id, last: null, lastLive, lastShort, any, interval: null, count: shorts.length, shortsOnly: true };
       return { id, last: null, interval: null, count: 0 };
     } catch (e) {
       if (signal?.aborted) throw e;
@@ -228,7 +263,7 @@ const YTAPI = (() => {
     }
     try {
       const r = await fetchFeed(id, signal);
-      if (r.last) return { id, ...r };
+      if (r.last) return { id, ...r, any: r.last };
     } catch { /* RSSも不可 */ }
     return { id, last: null, interval: null, count: 0, error: failed };
   }
