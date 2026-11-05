@@ -785,7 +785,7 @@
       const sortOpts = [['', '標準'], ['new', '新しい順'], ['low', '再生数が少ない順'], ['high', '再生数が多い順'], ['chaos', '🔥 賛否両論順']];
       const periodRow = srch ? `<label class="tg-chip ${S.sPeriod ? 'tg-focus' : 'tg-ghost'} tg-vcap" title="投稿された期間で絞る（YouTube の絞り込み。「日付を指定」は after: before: を使う）">📅 期間<select data-period="1">${PERIODS.map(([v, l]) => `<option value="${v}" ${S.sPeriod === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         ${S.sPeriod === 'range' ? `<label class="tg-chip tg-ghost tg-vcap tg-date" title="この日以降に投稿">から<input type="date" data-after="1" value="${esc(S.sAfter)}"></label><label class="tg-chip tg-ghost tg-vcap tg-date" title="この日より前に投稿">まで<input type="date" data-before="1" value="${esc(S.sBefore)}"></label>` : ''}` : '';
-      row2 = `<div class="tg-chips tg-folders">${modeSeg}${algoSeg}${kindSeg}<span class="tg-sub-lb">${srch ? '登録していないチャンネルから探す' : '未登録チャンネルのみ'}</span>
+      row2 = `<div class="tg-chips tg-folders">${modeSeg}${algoSeg}${kindSeg}
         ${srch ? '' : '<button class="tg-chip tg-ghost" data-reload="1">更新</button>'}
         <button class="tg-chip ${histOn() ? 'tg-focus' : 'tg-ghost'}" data-hist="1" title="${HIST_TITLE}" style="margin-left:auto">${histLabel()}</button></div>
         <div class="tg-chips tg-sub tg-filters"><span class="tg-sub-lb">絞り込み</span>

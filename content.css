@@ -1064,3 +1064,30 @@ html.tg-hidemem [data-tg-mem="1"] { display: none !important; }
 .tg-wk-btn { border: none; background: none; padding: 4px 0 0; color: var(--tg-fg); font: 700 12px Roboto, Arial, "Noto Sans JP", sans-serif; cursor: pointer; }
 /* 動画の下の情報行は小さく */
 .tg-exact { margin: 4px 0 0; font-size: 12px; }
+
+/* 🧰 プレイヤーのボタンをまとめる（TubeFolio ボタン1個＋メニュー） */
+html.tg-tbm .tg-c-btn.tg-c-inbar, html.tg-tbm .tg-px-tool, html.tg-tbm .tg-px-sub, html.tg-tbm .tg-px-spk, html.tg-tbm .tg-px-chbtn { width: 0 !important; min-width: 0 !important; padding: 0 !important; margin: 0 !important; overflow: hidden !important; opacity: 0 !important; pointer-events: none !important; }
+.tg-tb-btn { display: inline-flex; align-items: center; justify-content: center; opacity: .9; }
+.tg-tb-btn svg { width: 24px; height: 24px; fill: #fff; }
+.tg-tb-btn:hover, .tg-tb-btn.open { opacity: 1; }
+.tg-tb-btn.on svg { fill: #3ea6ff; }
+.tg-tb-menu { position: absolute; right: 12px; bottom: 58px; z-index: 2147483000; padding: 8px; border-radius: 12px; background: rgba(33,33,33,.96); color: #f1f1f1; font: 12px Roboto, Arial, "Noto Sans JP", sans-serif; }
+.tg-tb-it { position: relative; border: none; background: #383838; color: inherit; cursor: pointer; font: inherit; }
+.tg-tb-it:hover { background: #4a4a4a; }
+.tg-tb-it.on { box-shadow: inset 0 0 0 1px #3ea6ff; }
+.tg-tb-grid { display: grid; grid-template-columns: repeat(3, 92px); gap: 6px; }
+.tg-tb-grid .tg-tb-it { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 4px; border-radius: 8px; }
+.tg-tb-grid .tg-tb-it i { font-style: normal; font-size: 20px; line-height: 24px; }
+.tg-tb-grid .tg-tb-it b { font-weight: 500; font-size: 12px; white-space: nowrap; }
+.tg-tb-grid .tg-tb-it small { font-size: 10px; color: #9be37f; }
+
+/* メニューの閉じるボタン・元の概要欄のタブ */
+.tg-tb-h { display: flex; align-items: center; justify-content: space-between; margin: 0 0 6px 4px; font-weight: 700; font-size: 12px; }
+.tg-tb-x, .tg-c-x { border: none; background: transparent; color: inherit; cursor: pointer; font-size: 14px; width: 26px; height: 26px; border-radius: 50%; }
+.tg-tb-x:hover, .tg-c-x:hover { background: rgba(255,255,255,.15); }
+.tg-tb-grid { display: block; }
+.tg-tb-grid .tg-tb-it { display: inline-flex; width: 92px; margin: 3px; vertical-align: top; }
+.tg-tb-menu { width: 316px; box-sizing: border-box; }
+.tg-c-h { display: flex; align-items: center; justify-content: space-between; font-weight: 700; margin-bottom: 4px; }
+#tg-tools .tg-origdesc > summary { display: none; }
+#tg-tools .tg-origdesc > div { white-space: pre-wrap; max-height: 260px; overflow: auto; font-size: 12px; line-height: 1.6; }

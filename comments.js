@@ -145,7 +145,7 @@ const TGComments = (() => {
     stopEvents(menu);
     const row = (label, key, opts) => `<div class="tg-c-row"><span>${label}</span><div>${opts.map(([v, t]) =>
       `<button data-k="${key}" data-v="${v}" class="${String(cfg[key]) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</div></div>`;
-    menu.innerHTML = row('内容', 'mode', [['cmt', 'コメント'], ['tr', '文字起こし']]) +
+    menu.innerHTML = '<div class="tg-c-h">💬 コメントの表示<button class="tg-c-x" title="閉じる">✕</button></div>' + row('内容', 'mode', [['cmt', 'コメント'], ['tr', '文字起こし']]) +
       row('表示', 'side', [['right', '右側'], ['left', '左側'], ['off', 'オフ']]) +
       row('速さ', 'speed', [[1, '遅い'], [2, '普通'], [3, '速い']]) +
       row('幅', 'width', [['narrow', '狭い'], ['normal', '普通'], ['wide', '広い']]) +
@@ -154,6 +154,7 @@ const TGComments = (() => {
       row('最後まで流れたら', 'end', [['hide', '隠す'], ['loop', 'ループ'], ['stay', 'そのまま']]) +
       '<div class="tg-c-hint">設定はほかの動画でも共通で、次に開いたときも同じです</div>';
     menu.addEventListener('click', async e => {
+      if (e.target.closest('.tg-c-x')) { menu?.remove(); menu = null; return; }
       const b = e.target.closest('button[data-k]');
       if (!b) return;
       const v = b.dataset.k === 'speed' ? +b.dataset.v : b.dataset.v;

@@ -10,7 +10,8 @@
     ['wiki', '📖 事実確認', '#tg-wiki'],
     ['nth', '🧭 ズレた関連', '#tg-nth'],
     ['echo', '🧨 エコーチェンバー', '#tg-echo'],
-    ['tags', '🏷 タグ', '.tg-tags']
+    ['tags', '🏷 タグ', '.tg-tags'],
+    ['desc', '📝 元の概要欄', '.tg-origdesc']
   ];
   let on = true, open = '', lastV = '', sig = '';
   const curV = () => (location.pathname.startsWith('/watch') ? new URLSearchParams(location.search).get('v') || '' : '');
@@ -87,6 +88,7 @@
     }
     if (open && !tabs.some(t => t[0] === open)) open = '';
     body.querySelectorAll('.tg-tp-pane').forEach(b => b.classList.toggle('tg-on', b.dataset.tp === open));
+    const dd = body.querySelector('.tg-origdesc'); if (dd) dd.open = open === 'desc'; // 元の概要欄は、タブを開いたら中身も開く
     panel.hidden = !tabs.length;
     const s = tabs.map(t => t.join('|')).join('/') + '#' + open;
     if (s !== sig) {
