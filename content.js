@@ -1775,8 +1775,9 @@
         <div class="tg-ht-row"><span>動画</span><div class="tg-seg">${seg('homeCols', S.homeCols, ['', 3, 4, 5, 6, 7])}</div></div>
         <div class="tg-ht-row"><span>ショート</span><div class="tg-seg">${seg('homeShortCols', S.homeShortCols, ['', 3, 4, 5, 6, 7])}</div></div>
       </div>`;
-    const subsRow = `<div class="tg-ht-main">${dbBtn}<button class="tg-ht-btn tg-ht-act ${S.hideMembers ? 'on' : ''}" data-hidem="1" title="メンバー限定の動画を一覧から隠す／表示する">🔒 ${S.hideMembers ? 'メンバー限定を表示' : 'メンバー限定を隠す'}</button><button class="tg-ht-btn tg-ht-act ${S.hideWatched ? 'on' : ''}" data-hidew="1" title="90%以上見た動画を一覧から隠す／表示する">✓ ${S.hideWatched ? '視聴済みを表示' : '視聴済みを隠す'}</button>${hsBtn}</div>`;
-    const html = isSubs ? subsRow : isCh && !isHome ? `<div class="tg-ht-main">${dbBtn}${hsBtn}<button class="tg-ht-btn" data-toggle="1" title="一覧の列数（ホームと共通）">${IC.grid}<span>列</span></button></div>${chPanel}`
+    const memBtn = `<button class="tg-ht-btn tg-ht-act ${S.hideMembers ? 'on' : ''}" data-hidem="1" title="メンバー限定の動画を一覧から隠す／表示する">🔒 ${S.hideMembers ? 'メンバー限定を表示' : 'メンバー限定を隠す'}</button>`;
+    const subsRow = `<div class="tg-ht-main">${dbBtn}${memBtn}<button class="tg-ht-btn tg-ht-act ${S.hideWatched ? 'on' : ''}" data-hidew="1" title="90%以上見た動画を一覧から隠す／表示する">✓ ${S.hideWatched ? '視聴済みを表示' : '視聴済みを隠す'}</button>${hsBtn}</div>`;
+    const html = isSubs ? subsRow : isCh && !isHome ? `<div class="tg-ht-main">${dbBtn}${memBtn}${hsBtn}<button class="tg-ht-btn" data-toggle="1" title="一覧の列数（ホームと共通）">${IC.grid}<span>列</span></button></div>${chPanel}`
       : isHome ? `<div class="tg-ht-main">${dbBtn}${hsBtn}<button class="tg-ht-btn tg-ht-act ${histOn() ? 'on' : ''}" data-hist="1" title="${HIST_TITLE}">${histLabel()}</button><button class="tg-ht-btn" data-toggle="1" title="ホームの列数">${IC.grid}<span>列</span></button></div>
       <div class="tg-ht-panel">
         <div class="tg-ht-row"><span>動画</span><div class="tg-seg">${seg('homeCols', S.homeCols, ['', 3, 4, 5, 6, 7])}</div></div>
