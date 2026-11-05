@@ -1043,3 +1043,24 @@ html.tg-hidemem [data-tg-mem="1"] { display: none !important; }
 .tg-bmsh { padding: 6px 4px; }
 .tg-bmsec:not(.closed) > .tg-bml { padding: 0 0 4px; }
 .tg-pltools { margin: 10px 0 0; }
+
+/* 🧰 再生画面のツールパネル（右上・1行のタブ。押したものだけ開く） */
+#tg-tools { margin: 0 0 8px; color: var(--tg-fg); font: 13px Roboto, Arial, "Noto Sans JP", sans-serif; }
+#tg-tools[hidden] { display: none; }
+.tg-tp-bar { display: flex; flex-wrap: wrap; gap: 6px; }
+.tg-tp-tab { height: 28px; padding: 0 10px; border: none; border-radius: 14px; background: var(--tg-chip); color: var(--tg-fg); font: 600 12px Roboto, Arial, "Noto Sans JP", sans-serif; cursor: pointer; white-space: nowrap; }
+.tg-tp-tab:hover { background: var(--tg-chip-h); }
+.tg-tp-tab.on { background: #3ea6ff; color: #0f0f0f; }
+.tg-tp-tab.sb-found { box-shadow: inset 0 0 0 1px rgba(0,212,0,.7); }
+.tg-tp-tab.sb-none, .tg-tp-tab.sb-error { color: var(--tg-sub); font-weight: 500; }
+#tg-tools .tg-tp-pane { display: none; margin: 6px 0 0; padding: 8px 10px; border-radius: 10px; background: var(--tg-chip); }
+#tg-tools .tg-tp-pane.tg-on { display: block; }
+#tg-tools .tg-sbinfo { border: none; font-size: 12px; }
+#tg-tools .tg-echo-big { padding: 6px 10px; }
+#tg-tools .tg-nth-x { display: none; }
+#tg-tools .tg-nth-it .th { width: 112px; }
+#tg-tools #tg-wiki:not(.tg-wk-more) .tg-wiki-it:nth-of-type(n+2) { display: none; }
+#tg-tools #tg-wiki:not(.tg-wk-more) .tg-wiki-it p { -webkit-line-clamp: 2; }
+.tg-wk-btn { border: none; background: none; padding: 4px 0 0; color: var(--tg-fg); font: 700 12px Roboto, Arial, "Noto Sans JP", sans-serif; cursor: pointer; }
+/* 動画の下の情報行は小さく */
+.tg-exact { margin: 4px 0 0; font-size: 12px; }

@@ -1646,9 +1646,91 @@ const TGFeed = (() => {
     if (first && !rec.items.length) el.querySelector('.tg-grid').innerHTML = '<div class="tg-empty">未登録チャンネルのおすすめが見つかりませんでした。しばらくしてから「更新」してください。</div>';
   }
 
+  // ---------- おすすめ（動画）の別の探し方：🔗 芋づる / 🎲 ランダム語 ----------
+  //   chain … 登録チャンネルが「注目チャンネル」に載せている別のチャンネルをたどり、その最新動画を出す
+  //   wiki  … Wikipedia のランダムな記事名で探す（好みの外の話題に出会う）
+  const ALT_ALGOS = { chain: '🔗 芋づる', wiki: '🎲 ランダム語' };
+  const shuf = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  async function wikiWords() {
+    const r = await chrome.runtime.sendMessage({ type: 'xfetch', url: 'https://ja.wikipedia.org/w/api.php?action=query&list=random&rnnamespace=0&rnlimit=10&format=json', as: 'json' }).catch(() => null);
+    return (r?.query?.random || []).map(x => String(x.title || '').replace(/\s*[（(].*?[)）]\s*/g, '').trim())
+      .filter(t => t.length >= 2 && t.length <= 24 && !/一覧|曖昧さ回避|年表|の歴史|^\d+$/.test(t));
+  }
+  async function altCandidates(algo, plan, anon) {
+    const search = (q, params) => YTAPI.search(q, null, ctl.signal, params, { anon }).then(r => r.items, () => []);
+    if (algo === 'wiki') {
+      const words = (await wikiWords()).slice(0, 2);
+      if (!words.length) return { list: [], end: false, note: '' };
+      const lists = await Promise.all(words.map(w => search(w)));
+      return { list: lists.flat(), end: false, note: words.join('・') };
+    }
+    // chain
+    plan.chPool ||= shuf(Object.values(rec.S.channels).filter(c => c.id));
+    plan.featQ ||= [];
+    plan.doneCh ||= new Set();
+    if (plan.featQ.length < 4 && plan.chPool.length) {
+      const srcs = plan.chPool.splice(0, 4);
+      const feats = await Promise.all(srcs.map(c => YTAPI.featuredChannels(c.id, ctl.signal).catch(() => [])));
+      for (const f of feats.flat()) {
+        if (plan.doneCh.has(f.id) || rec.fav.has('channel/' + f.id)) continue;
+        plan.doneCh.add(f.id); plan.featQ.push(f);
+      }
+    }
+    const pick = plan.featQ.splice(0, 4);
+    if (!pick.length) return { list: [], end: !plan.chPool.length, note: '' };
+    const lists = await Promise.all(pick.map(async f => {
+      const vids = await YTAPI.channelTab(f.id, 'video', ctl.signal).catch(() => []);
+      return vids.slice(0, 3).map(x => ({ ...x, chId: f.id, chKey: 'channel/' + f.id, chName: f.name }));
+    }));
+    return { list: lists.flat(), end: !plan.featQ.length && !plan.chPool.length, note: pick.map(f => f.name).join('・') };
+  }
+  async function loadRecAlt(my, first) {
+    rec.loading = true;
+    const algo = rec.S.recAlgo;
+    try {
+      rec.plan ||= {};
+      const jpOnly = (await recPrefsOf(rec.S)).jp >= 1;
+      const perCh = rec.perCh || (rec.perCh = new Map());
+      const seen = new Set(rec.items.map(x => x.v));
+      const anon = !!rec.S.noHist;
+      let added = 0, rounds = 0;
+      while (rounds++ < 3 && added < 20) {
+        status(`${ALT_ALGOS[algo]}で探しています…${rec.items.length ? ` ${rec.items.length} 件` : ''}`);
+        const { list, end, note } = await altCandidates(algo, rec.plan, anon);
+        if (my !== run) return;
+        const got = [];
+        for (const x of shuf(list.slice())) {
+          if (!x.chKey || x.short || x.upcoming || x.live || seen.has(x.v) || !recReOk(x.v)) continue;
+          if (rec.fav.has(x.chKey) || (x.chId && rec.fav.has('channel/' + x.chId))) continue; // 登録済みは除外
+          const jp = JP.test(x.t || '') || JP.test(x.chName || '');
+          if (jpOnly && !jp) continue;
+          const n = perCh.get(x.chKey) || 0;
+          if (n >= 2) continue;
+          perCh.set(x.chKey, n + 1); seen.add(x.v);
+          got.push({ v: x.v, t: x.t, p: x.p, n: x.n, th: x.thumb, d: x.dur || 0, live: x.live, w: x.w || 0, mo: x.mo || undefined, _jp: jp, ch: { key: x.chKey, name: x.chName, unsub: true } });
+        }
+        rec.items.push(...got);
+        added += got.length;
+        if (note) TG.log('おすすめ', `${ALT_ALGOS[algo]}：${note} → ${got.length} 本`);
+        rec.altEmpty = got.length ? 0 : (rec.altEmpty || 0) + 1;
+        showSoFar(my, first);
+        if (end || rec.altEmpty >= 6) { rec.vmode = 'end'; break; }
+      }
+      rec.at = Date.now();
+    } catch (e) {
+      if (my === run && !ctl.signal.aborted) status('おすすめの取得に失敗しました：' + e.message);
+    } finally { rec.loading = false; }
+    if (my !== run) return;
+    markRecSeen(rec.items);
+    if (first && !rec.painted) paint(rec.items, '');
+    else { items = rec.items; status(recHasMore() ? '' : 'これ以上は見つかりませんでした（「更新」で読み直せます）'); afterLoad(); }
+    if (first && !rec.items.length) el.querySelector('.tg-grid').innerHTML = '<div class="tg-empty">見つかりませんでした。「更新」するか、別の探し方を選んでください。</div>';
+  }
+
   async function loadRec(my, first) {
     if (rec.kind === 'video') {
       if (first) { await loadRecSeen(); rec.blocked = new Set(recSeen.keys()); }
+      if (ALT_ALGOS[rec.S?.recAlgo]) return loadRecAlt(my, first);
       // まずホームのおすすめ。出し切ったらフォルダのキーワード検索・関連動画（loadRecVideo）
       // 履歴オフ：YouTube のホームのおすすめ（視聴履歴から作られる）は使わず、最初からキーワード検索・関連動画で探す
       return rec.vmode === 'more' || rec.S?.noHist || rec.S?.recAlgo === 'new' ? loadRecVideo(my, first) : loadRecHome(my, first);

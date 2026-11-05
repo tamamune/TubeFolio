@@ -772,7 +772,9 @@
     // おすすめ・後で見る：1段目は動画と同じ並び、2段目にその画面の操作
     if (S.feedType === 'rec') {
       const srch = S.recMode === 'search';
-      const algoSeg = srch ? '' : `<div class="tg-seg" title="旧検索：YouTube のおすすめ＋キーワード・関連動画　新検索：YouTube のおすすめを使わず、よく見るフォルダのキーワードと関連動画だけで作る">${seg('data-recalgo', 'old', '旧検索', (S.recAlgo || 'old') === 'old')}${seg('data-recalgo', 'new', '新検索', S.recAlgo === 'new')}</div>`;
+      const ALGOS = [['old', '🕰 旧検索'], ['new', '✨ 新検索'], ['chain', '🔗 芋づる'], ['wiki', '🎲 ランダム語']];
+      const algoNow = ALGOS.some(a => a[0] === S.recAlgo) ? S.recAlgo : 'old';
+      const algoSeg = srch || S.recKind === 'short' ? '' : `<label class="tg-chip ${algoNow === 'old' ? 'tg-ghost' : 'tg-focus'} tg-vcap" title="探し方（動画のおすすめ）&#10;🕰 旧検索：YouTube のおすすめ＋キーワード・関連動画&#10;✨ 新検索：YouTube のおすすめを使わず、よく見るフォルダのキーワードと関連動画だけ&#10;🔗 芋づる：登録チャンネルが紹介している別のチャンネルの最新動画&#10;🎲 ランダム語：Wikipedia のランダムな記事名で検索（好みの外の話題）">🧭 探し方<select data-recalgo-sel="1">${ALGOS.map(([v, l]) => `<option value="${v}" ${algoNow === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
       const kindSeg = `<div class="tg-seg" title="動画／ショート">${seg('data-reckind', 'video', '動画', S.recKind !== 'short')}${seg('data-reckind', 'short', 'ショート', S.recKind === 'short')}</div>`;
       const modeSeg = `<div class="tg-seg">${seg('data-recmode', 'rec', `${IC.rec}おすすめ`, !srch)}${seg('data-recmode', 'search', '🔍 お気に入り以外を検索', srch)}</div>`;
       // 1段目：探し方（おすすめ／検索・動画／ショート）　2段目：絞り込みと並べ替え
@@ -869,6 +871,13 @@
       TGFeed.setViewCap(viewCapNow);
       if (zeroBefore || (S.recMode === 'search' && S.sPeriod === 'h' && (was <= 100 || viewCapNow <= 100))) searchPatch({}); // ゼロビューの出入りは探し直す
       else buildBar(bar);
+    });
+    bar.querySelector('[data-recalgo-sel]')?.addEventListener('change', async e => {
+      S.recAlgo = e.target.value;
+      await chrome.storage.local.set({ recAlgo: S.recAlgo });
+      buildBar(bar);
+      window.scrollTo({ top: 0 });
+      TGFeed.refresh(S, { force: true });
     });
     bar.querySelector('[data-period]')?.addEventListener('change', e => {
       const v = e.target.value;

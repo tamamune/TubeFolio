@@ -562,6 +562,27 @@ const YTAPI = (() => {
     return out.filter(x => x.v && !seen.has(x.v) && seen.add(x.v));
   }
 
+  // チャンネルが「注目チャンネル」に載せている別のチャンネル（ホームの棚。専用のタブがあればそちらも）
+  async function featuredChannels(id, signal) {
+    const cfg = await getCfg();
+    const context = structuredClone(cfg.INNERTUBE_CONTEXT || {});
+    context.client = { ...(context.client || {}), hl: 'en' };
+    const get = params => innertube('browse', { context, browseId: id, ...(params ? { params } : {}) }, cfg, signal);
+    const jsons = [await get()];
+    const chTab = findTabs(jsons[0]).find(t => tabUrl(t).endsWith('/channels'));
+    const p = chTab?.endpoint?.browseEndpoint?.params;
+    if (p) jsons.push(await get(p));
+    const out = new Map();
+    for (const json of jsons) {
+      walk(json, (k, v) => {
+        if ((k === 'gridChannelRenderer' || k === 'channelRenderer') && v?.channelId) out.set(v.channelId, { id: v.channelId, name: text(v.title) });
+        else if (k === 'lockupViewModel' && /CHANNEL/.test(v?.contentType || '') && String(v.contentId || '').startsWith('UC')) out.set(v.contentId, { id: v.contentId, name: text(v.metadata?.lockupMetadataViewModel?.title) });
+      });
+    }
+    out.delete(id);
+    return [...out.values()];
+  }
+
   async function channelTab(id, tab, signal) {
     const cfg = await getCfg();
     const context = structuredClone(cfg.INNERTUBE_CONTEXT || {});
@@ -890,5 +911,5 @@ const YTAPI = (() => {
     return out.filter(x => x.t).sort((a, b) => a.s - b.s);
   }
 
-  return { unsavePlaylist, resolveHandle, channelTitle, createPlaylist, renamePlaylist, deletePlaylist, storyboard, transcript, addToPlaylist, videoText, channelDesc, related, playlistItems, myPlaylists, removeFromPlaylist, subsPage, search, shortsSequence, removeFromWatchLater, watchLater, videoOwner, fetchSubscriptions, fetchMeta, resolveId, channelSubInfo, setSubscribed, setNotification, channelTab, parseTab, recommended, channelPopular, subsFeed, comments, commentsMore, watchHistory, parseDay };
+  return { featuredChannels, unsavePlaylist, resolveHandle, channelTitle, createPlaylist, renamePlaylist, deletePlaylist, storyboard, transcript, addToPlaylist, videoText, channelDesc, related, playlistItems, myPlaylists, removeFromPlaylist, subsPage, search, shortsSequence, removeFromWatchLater, watchLater, videoOwner, fetchSubscriptions, fetchMeta, resolveId, channelSubInfo, setSubscribed, setNotification, channelTab, parseTab, recommended, channelPopular, subsFeed, comments, commentsMore, watchHistory, parseDay };
 })();
