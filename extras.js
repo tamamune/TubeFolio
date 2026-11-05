@@ -332,7 +332,7 @@ const TGX = (() => {
     go(idx + 1);
   }, true);
 
-  // ---------- 終わる30秒前に「次に見る動画」4本 ----------
+  // ---------- 終わる30秒前に「次のおすすめ動画」4本 ----------
   //   1本目：TubeFolioの連続再生中なら次の動画 ／ YouTubeの再生リストで見ているならリストの次の動画
   //   2本目以降：TubeFolioの「後で見る」からランダム（無ければYouTubeのおすすめ＝関連動画）
   //   出す場面（pickMode）：'auto'＝TubeFolioの「後で見る」に入っている動画を見ているときだけ（初期）
@@ -443,7 +443,7 @@ const TGX = (() => {
     const box = document.createElement('div');
     box.id = 'tg-pick';
     const note = out[0].first ? '選ばなければ「' + out[0].first + '」を自動で再生' : '押すとその動画へ';
-    box.innerHTML = `<div class="tg-pk-h"><b>次に見る動画</b><span>（${note}）</span><button class="tg-pk-x" title="閉じる">✕</button></div>
+    box.innerHTML = `<div class="tg-pk-h"><b>次のおすすめ動画</b><span>（${note}）</span><button class="tg-pk-x" title="閉じる">✕</button></div>
       <div class="tg-pk-list">${out.map((x, k) => `<button class="tg-pk-item ${x.first ? 'next' : ''}" data-k="${k}">
         <span class="tg-pk-th"><img src="https://i.ytimg.com/vi/${esc(x.v)}/mqdefault.jpg" alt="">${x.d ? `<i>${dur(x.d)}</i>` : ''}${x.first ? `<em>${esc(x.first)}</em>` : x.src ? `<em class="sub">${esc(x.src)}</em>` : ''}</span>
         <span class="tg-pk-t">${esc(x.t || '')}</span><span class="tg-pk-c">${esc(x.ch || '')}</span></button>`).join('')}</div>`;

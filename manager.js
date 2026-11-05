@@ -1457,7 +1457,12 @@ const TGManager = (() => {
   }
 
   // ---------- 設定（右上の ⚙）：バックアップ・同期／振り分け補助／コメント ----------
-  const SET_TABS = [['backup', '☁ 同期・バックアップ'], ['notify', '🔔 通知'], ['focus', '🎯 集中モード'], ['assist', '🪄 振り分け'], ['cmt', '💬 再生画面'], ['stats', '📊 視聴記録']];
+  // 上のタブは3つ。「ログ・同期」「整理・通知」は、中の小さなタブで切り替える
+  const SET_TOP = [
+    ['cmt', '🎬 再生・動画', [['cmt', '再生・動画']]],
+    ['org', '📂 整理・通知', [['notify', '🔔 通知'], ['rate', '🎚 再生速度'], ['focus', '🎯 集中モード'], ['assist', '🪄 振り分け']]],
+    ['log', '☁ ログ・同期', [['log', '📝 動作ログ'], ['stats', '📊 視聴記録'], ['backup', '☁ 同期・バックアップ']]]
+  ];
   // ---------- 集中モードの設定 ----------
   const DAYS = ['日', '月', '火', '水', '木', '金', '土'];
   async function openFocusCfg() {
@@ -1599,15 +1604,18 @@ const TGManager = (() => {
   const setAnchor = () => q('.setbtn');
   function settingsShell(tab, inner) {
     st.setTab = tab;
-    return `<div class="set"><div class="set-tabs">${SET_TABS.map(([k, l]) => `<button class="set-tab ${k === tab ? 'on' : ''}" data-act="settab" data-tab="${k}">${l}</button>`).join('')}<button class="set-tab set-log ${tab === 'log' ? 'on' : ''}" data-act="settab" data-tab="log" title="TubeFolioがバックグラウンドで行ったことの記録">📝 動作ログ</button></div>
+    const cur = SET_TOP.find(t => t[2].some(m => m[0] === tab)) || SET_TOP[0];
+    const sub = cur[2].length > 1 ? `<div class="set-sub">${cur[2].map(([k, l]) => `<button class="set-subtab ${k === tab ? 'on' : ''}" data-act="settab" data-tab="${k}">${l}</button>`).join('')}</div>` : '';
+    return `<div class="set"><div class="set-tabs">${SET_TOP.map(([k, l, ms]) => `<button class="set-tab ${k === cur[0] ? 'on' : ''}" data-act="settab" data-tab="${k === cur[0] ? tab : ms[0][0]}">${l}</button>`).join('')}</div>${sub}
       <div class="set-body">${inner}</div></div>`;
   }
   const SET_OPTS = { kind: 'settings', alignRight: true, wide: true, settings: true };
-  function openSettings(tab = st.setTab || 'backup') {
+  function openSettings(tab = st.setTab || 'cmt') {
     if (tab === 'folders') { setOnly(false); const p = q('.pop'); p.hidden = true; p.innerHTML = ''; st.pop = null; st.setTab = 'backup'; return; }
     if (tab === 'assist') return openAssistCfg();
     if (tab === 'cmt') return openCommentCfg();
     if (tab === 'notify') return openNotifyCfg();
+    if (tab === 'rate') return openRateCfg();
     if (tab === 'focus') return openFocusCfg();
     if (tab === 'log') return openLogCfg();
     if (tab === 'stats') return openStatsCfg();
@@ -1673,12 +1681,62 @@ const TGManager = (() => {
     clearTimeout(lgT); lgT = setTimeout(() => { if (st.setTab === 'log' && q('.lg-list')) openLogCfg(); }, 1500);
   });
 
+  // 再生・動画の設定を、使う場面ごとのグループ（折りたたみ）に分ける。開いているかは覚えておく（初期は上の2つだけ開く）
+  const SET_GROUPS = [
+    ['play', '▶ プレイヤーの操作', true, ['戻る・進むボタン', '進行状況バー', '自動ミニプレイヤー', '次のおすすめ動画', 'リマインダー']],
+    ['ads', '📢 広告・通信', true, ['広告の早送り', '低評価率', '省データモード', 'SponsorBlock機能']],
+    ['lang', '🗣 字幕・言語', false, ['字幕の読み上げ', '自動翻訳を元に戻す']],
+    ['cmt', '💬 コメント', false, ['再生画面のコメント', 'コメントのチャプター', 'コメントの名前']],
+    ['info', '🔢 動画の情報', false, ['動画の情報']],
+    ['list', '🖥 一覧・サムネ', false, ['一覧の列', 'サムネに乗せた', 'ショート', '「フォルダ」のショートカット']],
+    ['other', '🧩 その他', false, []]
+  ];
+  function groupSettings(html, saved) {
+    const body = html.replace(/^\s*<div class="bk">/, '').replace(/<\/div>\s*$/, '');
+    const chunks = body.split(/(?=<div class="bk-h cm-h">)/).filter(c => c.trim());
+    const buckets = new Map(SET_GROUPS.map(g => [g[0], []]));
+    for (const c of chunks) {
+      const title = (c.match(/<div class="bk-h cm-h">(.*?)<\/div>/) || [])[1] || '';
+      const g = SET_GROUPS.find(x => x[3].some(k => title.includes(k))) || SET_GROUPS[SET_GROUPS.length - 1];
+      buckets.get(g[0]).push({ c, o: g[3].findIndex(k => title.includes(k)) });
+    }
+    saved = saved || {};
+    for (const [k, list] of buckets) buckets.set(k, list.sort((x, y) => (x.o < 0 ? 99 : x.o) - (y.o < 0 ? 99 : y.o)).map(x => x.c)); // グループの中は、決めた並びに
+    return '<div class="bk">' + SET_GROUPS.filter(g => buckets.get(g[0]).length).map(([k, label, def]) => {
+      const open = k in saved ? saved[k] : def;
+      return `<details class="acc set-grp" data-grp="${k}" ${open ? 'open' : ''}><summary>${label}<small>${buckets.get(k).length} 項目</small></summary>${buckets.get(k).join('')}</details>`;
+    }).join('') + '</div>';
+  }
+
+  // ---------- フォルダ別の再生速度（整理・通知のタブ） ----------
+  async function openRateCfg() {
+    const xr = await chrome.storage.local.get(['folderRates']);
+    const rates = xr.folderRates || {};
+    const RATES = ['', '0.75', '1', '1.25', '1.5', '1.75', '2'];
+    const rateRows = TG.tree(st.folders).map(({ f, depth }) => `<div class="nt-row" style="--d:${depth}">
+        <span class="nt-name"><i style="background:${esc(f.color || '#888')}"></i>${esc(f.name)}</span>
+        <select data-rate="${esc(f.id)}">${RATES.map(r => `<option value="${r}" ${String(rates[f.id] || '') === r ? 'selected' : ''}>${r ? r + ' 倍' : depth ? '親フォルダと同じ' : '指定なし'}</option>`).join('')}</select></div>`).join('');
+    const nRates = Object.keys(rates).filter(k => rates[k]).length;
+    showPop(setAnchor(), settingsShell('rate', `<div class="bk nt">
+      <div class="bk-h">🎚 フォルダ別の再生速度</div>
+      <p class="bk-note">動画を開いたとき、そのチャンネルが入っているフォルダの速度に自動で合わせます（サブフォルダが「親フォルダと同じ」なら親の設定）。開いたあとに手で変えた速度はそのまま。${nRates ? `（${nRates} フォルダ設定済み）` : ''}</p>
+      <div class="bk-sub">フォルダごと</div>
+      <div class="nt-rows">${rateRows || '<p class="bk-note">フォルダがありません</p>'}</div>
+    </div>`), SET_OPTS);
+    const pp = q('.pop');
+    pp.querySelectorAll('[data-rate]').forEach(sel => sel.addEventListener('change', async () => {
+      const { folderRates = {} } = await chrome.storage.local.get('folderRates');
+      if (sel.value) folderRates[sel.dataset.rate] = +sel.value; else delete folderRates[sel.dataset.rate];
+      await chrome.storage.local.set({ folderRates, prefsAt: Date.now() });
+    }));
+  }
+
   async function openCommentCfg() {
     const DEF = { side: 'right', speed: 2, width: 'normal', sort: 'top', end: 'hide', mode: 'cmt' };
     const cfg = { ...DEF, ...((await chrome.storage.local.get('cmt')).cmt || {}) };
     const pick = (await chrome.storage.local.get('pickMode')).pickMode || 'auto';
     const chap = (await chrome.storage.local.get('cchap')).cchap?.on !== false;
-    const xr = await chrome.storage.local.get(['px', 'folderRates', 'sleepWin', 'chSet']);
+    const xr = await chrome.storage.local.get(['px', 'folderRates', 'sleepWin', 'chSet', 'setGrp']);
     // チャンネル別の設定（同じチャンネルの別キーはまとめて1行）
     const chRows = new Map();
     for (const [k, c] of Object.entries(xr.chSet || {})) {
@@ -1688,19 +1746,15 @@ const TGManager = (() => {
     const chList = [...chRows.values()].map(({ name, c, keys }) => `<div class="cm-row px-chrow"><span>${esc(name)}<em class="px-em">${[c.s > 0 ? `冒頭 ${c.s}秒` : '', c.e > 0 ? `最後 ${c.e}秒` : '', c.mid ? 'サムネ：途中の画面' : ''].filter(Boolean).join('・')}</em></span>
       <button class="icon" data-act="chset-del" data-keys="${esc(keys.join('\n'))}" title="この設定を消す">✕</button></div>`).join('');
     const fopen = { on: true, type: 'new', ...((await chrome.storage.local.get('fOpen')).fOpen || {}) };
-    const px = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, adFast: true, antiTr: true, sbUndo: true, sbHl: true, sbPriv: true, sbc_sponsor: "skip", sbc_selfpromo: "skip", sbc_interaction: "skip", sbc_intro: "skip", sbc_outro: "show", sbc_preview: "show", sbc_filler: "show", sbc_music_offtopic: "show", sbc_poi_highlight: "show", speak: false, speakRate: 1.2, speakDuck: 15, speakHide: false, saver: false, exact: true, tags: true, nth: true, echo: true, toolPanel: true, tbMerge: true, hoverSound: true, hoverVol: 30, hoverFast: true, feedPreview: true, shortsTime: true, sb: true, rydWarn: true, disBadge: true, wb: true, gh: true, ghYears: 2, wiki: true, out: true, outMin: 120, outCity: '', pvMode: 'old', pvScale: 0.25, colMin: 3, colMax: 7, jaOff: true, cmtName: true, seekOp: 40, frameBtn: true, alwaysProg: false, alwaysCtl: false, sfx: true, sfx_chapter: true, sfx_next: true, sfxVol: 50, ...(xr.px || {}) };
-    const rates = xr.folderRates || {}, slp = { on: true, from: '23:00', to: '07:00', ...(xr.sleepWin || {}) };
+    const px = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, adFast: true, antiTr: true, sbUndo: true, sbHl: true, sbPriv: true, sbc_sponsor: "skip", sbc_selfpromo: "skip", sbc_interaction: "skip", sbc_intro: "skip", sbc_outro: "show", sbc_preview: "show", sbc_filler: "show", sbc_music_offtopic: "show", sbc_poi_highlight: "show", speak: false, speakRate: 1.2, speakDuck: 15, speakHide: false, saver: false, bedExt: 30, exact: true, tags: true, nth: true, echo: true, toolPanel: true, tbMerge: true, hoverSound: true, hoverVol: 30, hoverFast: true, feedPreview: true, shortsTime: true, sb: true, rydWarn: true, disBadge: true, wb: true, gh: true, ghYears: 2, wiki: true, out: true, outMin: 120, outCity: '', pvMode: 'old', pvScale: 0.25, colMin: 3, colMax: 7, jaOff: true, cmtName: true, seekOp: 40, frameBtn: true, alwaysProg: false, alwaysCtl: false, sfx: true, sfx_chapter: true, sfx_next: true, sfxVol: 50, ...(xr.px || {}) };
+    const slp = { on: true, from: '23:00', to: '07:00', ...(xr.sleepWin || {}) };
     const pxRow = (label, key, opts) => `<div class="cm-row"><span>${label}</span><div class="cm-seg">${opts.map(([v, t]) =>
       `<button data-act="pxset" data-k="${key}" data-v="${v}" class="${String(px[key]) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</div></div>`;
-    const RATES = ['', '0.75', '1', '1.25', '1.5', '1.75', '2'];
-    const rateRows = TG.tree(st.folders).map(({ f, depth }) => `<div class="cm-row px-rate" style="padding-left:${depth * 16}px"><span><i class="px-dot" style="background:${esc(f.color || '#888')}"></i>${esc(f.name)}</span>
-      <select data-rate="${esc(f.id)}">${RATES.map(r => `<option value="${r}" ${String(rates[f.id] || '') === r ? 'selected' : ''}>${r ? r + ' 倍' : depth ? '親フォルダと同じ' : '指定なし'}</option>`).join('')}</select></div>`).join('');
-    const nRates = Object.keys(rates).filter(k => rates[k]).length;
     const row = (label, key, opts) => `<div class="cm-row"><span>${label}</span><div class="cm-seg">${opts.map(([v, t]) =>
       `<button data-act="cmtset" data-k="${key}" data-v="${v}" class="${String(cfg[key]) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</div></div>`;
     // 見出し → 説明 → 設定の行（ほかの項目と同じ並び）
     const sec = (title, desc, ctl) => `<div class="bk-h cm-h">${title}</div><p class="bk-note">${desc}</p>${ctl}`;
-    showPop(setAnchor(), settingsShell('cmt', `<div class="bk">
+    showPop(setAnchor(), settingsShell('cmt', groupSettings(`<div class="bk">
       <div class="bk-h cm-h">👤 コメントの名前</div>
       <p class="bk-note">YouTube のコメント欄と流れるコメントで、「@ハンドル」の代わりにユーザー名（チャンネルの名前）を出します。乗せると @ハンドル も見えます。</p>
       ${pxRow('コメントの名前', 'cmtName', [['true', 'ユーザー名に変更'], ['false', '戻す（@ハンドル）']])}
@@ -1715,12 +1769,12 @@ const TGManager = (() => {
       <p class="bk-note">動画のチャプター（概要欄の目次）と、再生中の動画のコメントの「0:25」のような時間を、操作バーの ⏱ の一覧にまとめます（コメントの時間はシークバーにも印）。押すとその場面へ飛びます。</p>
       <div class="cm-row"><span>使う</span><div class="cm-seg">${[['on', 'オン'], ['off', 'オフ']].map(([v, t]) => `<button data-act="cchapset" data-v="${v}" class="${(chap ? 'on' : 'off') === v ? 'on' : ''}">${t}</button>`).join('')}</div></div>
       <div class="bk-h cm-h">🔔 効果音</div>
-      <p class="bk-note">チャプターの一覧（📑 動画のチャプター・💬 コメントの時間）がある動画の再生が始まったとき（💧 水滴・両方あっても1回）と、終わる前に「次に見る動画」が出たとき（🎉 クイズ正解）に音を鳴らします。</p>
+      <p class="bk-note">チャプターの一覧（📑 動画のチャプター・💬 コメントの時間）がある動画の再生が始まったとき（💧 水滴・両方あっても1回）と、終わる前に「次のおすすめ動画」が出たとき（🎉 クイズ正解）に音を鳴らします。</p>
       ${pxRow('効果音', 'sfx', [['true', 'オン'], ['false', 'オフ']])}
       ${pxRow('チャプターがある動画の再生', 'sfx_chapter', [['true', '鳴らす'], ['false', '鳴らさない']])}
-      ${pxRow('次に見る動画', 'sfx_next', [['true', '鳴らす'], ['false', '鳴らさない']])}
+      ${pxRow('次のおすすめ動画', 'sfx_next', [['true', '鳴らす'], ['false', '鳴らさない']])}
       ${pxRow('音量', 'sfxVol', [[20, '20%'], [35, '35%'], [50, '50%'], [70, '70%'], [100, '100%']])}
-      <div class="bk-h cm-h">⏭ 次に見る動画</div>
+      <div class="bk-h cm-h">⏭ 次のおすすめ動画</div>
       <p class="bk-note">TubeFolioの「後で見る」に入っている動画を見ているとき、終わる30秒前に4本出します。後で見るからランダムに4本（YouTubeの再生リストで見ていれば1本目はその次の動画）。後で見るに入っていない動画（再生リストで次へ進んだ動画も）には出しません。</p>
       <div class="cm-row"><span>出す場面</span><div class="cm-seg">${[['auto', '後で見るの動画のとき'], ['always', 'いつも'], ['off', '出さない']].map(([v, t]) => `<button data-act="pickset" data-v="${v}" class="${pick === v ? 'on' : ''}">${t}</button>`).join('')}</div></div>
       <div class="bk-h cm-h">⏪⏩ 戻る・進むボタン</div>
@@ -1736,15 +1790,13 @@ const TGManager = (() => {
       <div class="bk-h cm-h">📺 自動ミニプレイヤー</div>
       <p class="bk-note">再生中に下へスクロールしてコメントを読むとき、プレイヤーを右下に小さく表示します（↑ で元の位置へ、⧉ で本物のピクチャー・イン・ピクチャー、✕ で閉じる）。</p>
       ${pxRow('使う', 'mini', [['true', 'オン'], ['false', 'オフ']])}
-      <div class="bk-h cm-h">🎚 フォルダ別の再生速度</div>
-      <p class="bk-note">動画を開いたとき、そのチャンネルが入っているフォルダの速度に自動で合わせます（サブフォルダが「親フォルダと同じ」なら親の設定）。開いたあとに手で変えた速度はそのまま。</p>
-      <details class="acc px-acc" ${nRates ? 'open' : ''}><summary>フォルダごとの速度<small>${nRates ? `（${nRates} フォルダ設定済み）` : ''}</small></summary>${rateRows || '<p class="bk-note">フォルダがありません</p>'}</details>
       <div class="bk-h cm-h">⏰ リマインダー</div>
       <p class="bk-note">見ている動画の上にやさしくお知らせを出して、視聴を区切る目安にします。続けて見た時間は、10分以上止めると数え直します。</p>
       ${pxRow('休憩', 'brk', [[0, 'オフ'], [30, '30分'], [60, '60分'], [90, '90分'], [120, '120分']])}
       ${pxRow('就寝時間', 'bed', [['true', 'オン'], ['false', 'オフ']])}
+      ${pxRow('就寝の延長（初期の時間）', 'bedExt', [[10, '10分'], [15, '15分'], [30, '30分'], [45, '45分'], [60, '1時間'], [90, '1.5時間'], [120, '2時間']])}
       <div class="cm-row"><span>就寝時間の範囲<em class="px-em">視聴パターンの就寝時間と共通</em></span><span class="px-time"><input type="time" data-slp="from" value="${esc(slp.from)}">〜<input type="time" data-slp="to" value="${esc(slp.to)}"></span></div>
-      <div class="bk-h cm-h">📁 サイドバーの「フォルダ」の見出しを押したとき</div>
+      <div class="bk-h cm-h">📁 「フォルダ」のショートカット</div>
       <p class="bk-note">オンにすると、サイドバーの「フォルダ」という見出しの文字を押したときに、選んだ一覧をすべてのフォルダで開きます。個々のフォルダを押したときは、今までどおりそのフォルダの動画を開きます（▸ でサブフォルダ・チャンネル名の一覧）。</p>
       <div class="cm-row"><span>使う</span><div class="cm-seg">${[['true', 'オン'], ['false', 'オフ']].map(([v, t]) => `<button data-act="fopenset" data-k="on" data-v="${v}" class="${String(fopen.on) === v ? 'on' : ''}">${t}</button>`).join('')}</div></div>
       <div class="cm-row"><span>開く一覧</span><div class="cm-seg">${[['new', '新着動画'], ['live', 'ライブ・配信'], ['short', 'ショート'], ['rec', 'おすすめ'], ['later', '後で見る'], ['bm', 'ブックマーク']].map(([v, t]) => `<button data-act="fopenset" data-k="type" data-v="${v}" class="${fopen.type === v ? 'on' : ''}">${t}</button>`).join('')}</div></div>
@@ -1764,7 +1816,7 @@ const TGManager = (() => {
       <div class="bk-h cm-h">📱 ショート</div>
       <p class="bk-note">ショートを見ているときは、横の空いた場所に「ショートを見続けている時間」（次のショートへ移っても続けて数える）と、その時間を足し上げた今日のショートの合計を出します（TubeFolio の一覧でショートをプレビューした時間も含む）。</p>
       ${pxRow('ショートの時間表示', 'shortsTime', [['true', '表示'], ['false', '非表示']])}
-      <div class="bk-h cm-h">⏩ スポンサー・茶番を飛ばす（SponsorBlock）</div>
+      <div class="bk-h cm-h">⏩ SponsorBlock機能</div>
       <p class="bk-note">有志が登録した区間（スポンサー・宣伝・オープニングなど）を、動画の下の案内とシークバーの色で知らせます。区間の種類ごとに「自動で飛ばす」「案内だけ（区間に入るとボタンを出す）」「無視」を選べます。日本語の動画は登録が少なめです。</p>
       ${pxRow('自動で飛ばす（全体のオン/オフ）', 'sb', [['true', 'オン'], ['false', 'オフ']])}
       ${pxRow('飛ばしたあとの「↩ 戻す」ボタン', 'sbUndo', [['true', '表示'], ['false', '非表示']])}
@@ -1828,8 +1880,13 @@ const TGManager = (() => {
       ${chList || '<p class="bk-note">まだありません。</p>'}
       <div class="bk-h cm-h">🔖 ブックマーク</div>
       <p class="bk-note">再生中に <b>B</b> キーを押すと、その瞬間の時間を保存して1行メモを書けます（サイドバーの「ブックマーク」で一覧。⏱ チャプターの一覧にも出ます）。</p>
-    </div>`), SET_OPTS);
+    </div>`, xr.setGrp)), SET_OPTS);
     const pp = q('.pop');
+    pp.querySelectorAll('.set-grp').forEach(d => d.addEventListener('toggle', async () => {
+      const { setGrp = {} } = await chrome.storage.local.get('setGrp');
+      if (setGrp[d.dataset.grp] === d.open) return;
+      await chrome.storage.local.set({ setGrp: { ...setGrp, [d.dataset.grp]: d.open } });
+    }));
     // 新プレビューの UI の大きさ（1〜100%）
     const pvSet = async v => {
       v = Math.min(100, Math.max(1, +v || 25));
@@ -1842,11 +1899,6 @@ const TGManager = (() => {
       const { px: cur = {} } = await chrome.storage.local.get('px');
       await chrome.storage.local.set({ px: { ...cur, outCity: e.target.value.trim() }, prefsAt: Date.now() });
     });
-    pp.querySelectorAll('[data-rate]').forEach(sel => sel.addEventListener('change', async () => {
-      const { folderRates = {} } = await chrome.storage.local.get('folderRates');
-      if (sel.value) folderRates[sel.dataset.rate] = +sel.value; else delete folderRates[sel.dataset.rate];
-      await chrome.storage.local.set({ folderRates, prefsAt: Date.now() });
-    }));
     pp.querySelectorAll('[data-slp]').forEach(inp => inp.addEventListener('change', async () => {
       const { sleepWin = {} } = await chrome.storage.local.get('sleepWin');
       await chrome.storage.local.set({ sleepWin: { on: true, from: '23:00', to: '07:00', ...sleepWin, [inp.dataset.slp]: inp.value }, prefsAt: Date.now() });
@@ -2256,7 +2308,7 @@ const TGManager = (() => {
   .ar-row input.nt-kw{flex:1;width:100%;text-align:left}
   .nt-help{margin:0 0 8px;padding-left:18px;font-size:12px;line-height:1.7;color:var(--muted)}
   .nt-help b{color:var(--fg)}
-  .pop.settings{width:min(780px,calc(100vw - 32px));max-width:none;padding:0;max-height:min(84vh,860px);overflow-y:auto}
+  .pop.settings{width:min(620px,calc(100vw - 32px));max-width:none;padding:0;max-height:min(84vh,860px);overflow-y:auto}
   .set-tabs{position:sticky;top:0;z-index:2;display:flex;gap:0;padding:10px 6px 0;overflow-x:auto;scrollbar-width:none;background:var(--card);border-bottom:1px solid var(--line)}
   .set-tab{white-space:nowrap;border:1px solid transparent;border-bottom:none;border-radius:10px 10px 0 0;background:transparent;padding:8px 6px;font-size:13px;color:var(--muted);margin-bottom:-1px}
   .set-tab:hover{background:var(--card2)}
@@ -2287,6 +2339,13 @@ const TGManager = (() => {
   .lg-m{word-break:break-all;white-space:pre-wrap}
   .lg-warn .lg-m{color:#e8a200}.lg-error .lg-m{color:#ff6b6b}
   .lg-more{margin:6px auto;display:block}
+  .set-sub{display:flex;gap:6px;padding:8px 10px 0;flex-wrap:wrap}
+  .set-subtab{border:1px solid var(--line);border-radius:14px;background:transparent;color:var(--muted);padding:4px 12px;font-size:12px}
+  .set-subtab:hover{background:var(--card2)}
+  .set-subtab.on{background:var(--card2);color:var(--fg);font-weight:700}
+  .set-grp>summary{font-size:14px;font-weight:700;padding:11px 0}
+  .set-grp>summary small{color:var(--muted);font-weight:400;font-size:11px;margin-left:auto}
+  .set-grp .bk-h.cm-h:first-of-type{margin-top:4px}
   .set-tab.on{background:var(--bg);color:var(--fg);font-weight:700;border-color:var(--line);border-bottom:1px solid var(--bg)}
   .set-body{padding:14px 16px 16px;background:var(--bg)}
   .acc{border:1px solid var(--line);border-radius:10px;padding:2px 12px;margin:10px 0}
@@ -2300,6 +2359,9 @@ const TGManager = (() => {
   .cm-seg{display:flex;gap:4px}
   .cm-seg button{padding:5px 12px;border-radius:8px;font-size:12px}
   .cm-seg button.on{background:var(--fg);color:var(--bg);font-weight:700;border-color:var(--fg)}
+  .pop.settings .cm-row:not(.cm-col){justify-content:flex-start;gap:14px}
+  .pop.settings .cm-row:not(.cm-col)>span:first-child{flex:0 0 45%;text-align:right}
+  .pop.settings .cm-seg{flex-wrap:wrap}
   .setbtn{margin-left:4px}
   .app.setonly{background:transparent}
   .app.setonly > header, .app.setonly > .body{visibility:hidden}

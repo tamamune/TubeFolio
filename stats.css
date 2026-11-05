@@ -188,3 +188,37 @@ body.pat .log-only { display: none !important; }
 :root[data-theme="dark"] .hsum .bad b { color: #ff8a80; }
 .log-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 14px; }
 .top { min-height: 61px; }
+
+/* ---------- 視聴記録の改良 ---------- */
+.monthly { height: 150px; }
+.monthly .col .b { max-width: 54px; }
+.monthly .col.today .b { background: var(--accent); }
+.monthly-axis span { font-size: 11px; }
+.hint-click { margin: -6px 2px 14px; font-size: 12px; }
+.hb[data-ft] { cursor: pointer; border-radius: 8px; padding: 2px 4px; margin: -2px -4px; }
+.hb[data-ft]:hover { background: var(--chip); }
+.hb.sel { background: var(--chip); outline: 1px solid var(--accent); }
+.hb .ext { color: var(--muted); font-size: 11px; margin-left: 4px; text-decoration: none; }
+.fdet { position: relative; }
+.fdet > summary { cursor: pointer; list-style: none; background: var(--chip); border: 1px solid var(--line); border-radius: 18px; padding: 6px 14px; font-size: 13px; }
+.fdet > summary::-webkit-details-marker { display: none; }
+.fdet > summary::after { content: " ▾"; }
+.fdet[open] > summary::after { content: " ▴"; }
+.fdet-in { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; padding: 10px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; position: absolute; z-index: 5; min-width: 260px; }
+.fchip { margin: 0 0 10px; padding: 6px 12px; border-radius: 18px; background: var(--chip); border: 1px solid var(--accent); display: inline-flex; gap: 10px; align-items: center; font-size: 13px; }
+.fchip button { border: none; background: transparent; cursor: pointer; color: var(--muted); font-size: 14px; }
+.dayhead td { background: var(--chip); font-weight: 700; font-size: 13px; padding: 8px 12px; }
+.dayhead small { font-weight: 400; color: var(--muted); margin-left: 8px; }
+.small.on { background: var(--fg); color: var(--bg); }
+.kpi .s .up, .kpi .s .dn { font-weight: 700; margin-left: 4px; }
+
+/* ---------- 記録と視聴パターンを1枚に ---------- */
+.toc { display: flex; gap: 6px; margin-left: auto; }
+.toc a { padding: 6px 12px; border-radius: 16px; background: var(--chip); color: var(--fg); text-decoration: none; font-size: 13px; }
+.toc a:hover { background: var(--line); }
+.sec-h { font-size: 18px; margin: 28px 2px 12px; scroll-margin-top: 70px; }
+.vsec > summary { cursor: pointer; padding: 12px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; font-weight: 700; list-style: none; margin-bottom: 12px; }
+.vsec > summary::-webkit-details-marker { display: none; }
+.vsec > summary::before { content: "▸ "; }
+.vsec[open] > summary::before { content: "▾ "; }
+.top { flex-wrap: wrap; }

@@ -6,7 +6,7 @@
 //   設定 px: { seek, seekSec, mini, brk（分・0＝オフ）, bed }、sleepWin: { on, from, to }（視聴パターンの就寝時間と共通）
 const TGPlayerX = (() => {
   const esc = TG.esc;
-  const DEF = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, jaOff: true, seekOp: 40, frameBtn: true, alwaysProg: false, alwaysCtl: false, adFast: true, saver: false, exact: true, tags: true, nth: true, echo: true };
+  const DEF = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, jaOff: true, seekOp: 40, frameBtn: true, alwaysProg: false, alwaysCtl: false, adFast: true, saver: false, exact: true, tags: true, nth: true, echo: true, bedExt: 30 };
   let cfg = { ...DEF }, rates = {}, sleep = { on: true, from: '23:00', to: '07:00' }, D = null;
   let chSet = {}; // チャンネル別：{ キー: { s: 冒頭スキップ秒, e: 最後スキップ秒, mid: サムネを途中の画面に, name } }
 
@@ -835,7 +835,7 @@ const TGPlayerX = (() => {
     d.className = 'tg-px-rem ' + kind;
     // 就寝：延長する時間を選べる（初期 30分・1時間も）
     const ext = kind === 'bed'
-      ? `<select class="tg-px-rem-sel" title="延長する時間">${[[15, '15分'], [30, '30分'], [60, '1時間']].map(([m, l]) => `<option value="${m}" ${m === 30 ? 'selected' : ''}>${l}</option>`).join('')}</select><button data-r="ext">延長する</button>`
+      ? `<select class="tg-px-rem-sel" title="延長する時間">${[[10, '10分'], [15, '15分'], [30, '30分'], [45, '45分'], [60, '1時間'], [90, '1.5時間'], [120, '2時間']].map(([m, l]) => `<option value="${m}" ${m === (cfg.bedExt || 30) ? 'selected' : ''}>${l}</option>`).join('')}</select><button data-r="ext">延長する</button>`
       : `<button data-r="later">あと${later}分</button>`;
     d.innerHTML = `<div class="tg-px-rem-t">${html}</div><div class="tg-px-rem-b"><button data-r="pause">⏸ 一時停止する</button>${ext}<button data-r="x">閉じる</button></div>`;
     ['mousedown', 'mouseup', 'dblclick', 'click', 'keydown'].forEach(t => d.addEventListener(t, e => e.stopPropagation()));

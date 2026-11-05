@@ -10,22 +10,40 @@
 <body>
   <header class="top">
     <div class="brand"><img class="logo-img" src="icons/icon48.png" alt="" width="30" height="30"><h1>視聴記録</h1></div>
-    <div class="seg log-only" id="period">
-      <button data-p="1">今日</button><button data-p="7">7日</button><button data-p="30">30日</button><button data-p="90">90日</button><button data-p="0">すべて</button>
+    <div class="seg" id="period">
+      <button data-p="1">今日</button><button data-p="7">7日</button><button data-p="w0">今週</button><button data-p="w1">先週</button><button data-p="30">30日</button><button data-p="90">90日</button><button data-p="0">すべて</button>
     </div>
-    <label class="toggle log-only" title="外部サービス Return YouTube Dislike の推定値を表示します">
+    <span class="muted" id="pRange"></span>
+    <label class="toggle" title="外部サービス Return YouTube Dislike の推定値を表示します">
       <input type="checkbox" id="ryd"> 👎 低評価（推定）
     </label>
-    <div class="pat-only pat-h">
-      <div class="seg" id="pPeriod"><button data-p="w0">今週</button><button data-p="w1">先週</button><button data-p="4w">4週間</button><button data-p="m">月別</button></div>
-      <span class="muted" id="pRange"></span>
-    </div>
-    <div class="seg view-seg" id="view"><button data-v="log">📋 記録</button><button data-v="pat">📊 視聴パターン</button></div>
+    <nav class="toc"><a href="#s-all">📊 全体</a><a href="#s-break">🗂 内訳</a><a href="#s-videos">📋 見た動画</a></nav>
   </header>
 
   <main>
-   <div id="v-pat" hidden>
+    <section class="kpis" id="kpis"></section>
+
+    <h2 class="sec-h" id="s-all">📊 全体</h2>
+    <section class="card">
+      <div class="card-h"><h2>日ごとの視聴時間</h2><span class="muted" id="dailyNote"></span></div>
+      <div id="daily" class="daily"></div>
+    </section>
+
+    <div class="two pat-two">
+      <section class="card">
+        <div class="card-h"><h2>月ごとの推移</h2><span class="muted" id="monthlyNote"></span></div>
+        <div id="monthly" class="daily monthly"></div>
+        <div class="monthly-axis daily-axis" id="monthlyAxis"></div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2>時間帯の傾向</h2><span class="muted" id="pHeatNote"></span></div>
+        <div id="pHeat" class="pheat"></div>
+      </section>
+    </div>
+
+    <h2 class="sec-h" id="s-break">🗂 内訳</h2>
     <section class="kpis" id="pKpis"></section>
+
     <div class="two pat-two">
       <section class="card">
         <div class="card-h"><h2 id="pStackTitle">曜日 × フォルダ</h2><span class="muted">視聴時間（積み上げ）</span></div>
@@ -35,30 +53,8 @@
       <section class="card">
         <div class="card-h"><h2>見かたの内訳</h2><span class="muted">ショートと通常の動画・端末</span></div>
         <div id="pMix" class="pmixes"></div>
-        <div class="card-h ptop-h"><h2>⏳ 時間を使ったチャンネル</h2><span class="muted">上位5</span></div>
-        <div id="pTop"></div>
       </section>
     </div>
-    <div class="two pat-two">
-      <section class="card">
-        <div class="card-h"><h2>フォルダごとの目安（1週間）と実績</h2><span class="muted" id="pGoalNote">白い線が目安</span><button id="pGoalEdit" class="small">目安を変更</button></div>
-        <div id="pGoals" class="pgoals"></div>
-        <div id="pAdvice"></div>
-      </section>
-      <section class="card">
-        <div class="card-h"><h2>時間帯の傾向</h2><span class="muted" id="pHeatNote"></span></div>
-        <div id="pHeat" class="pheat"></div>
-      </section>
-    </div>
-    <p class="muted pat-foot">フォルダは「いまのフォルダ分け」で集計します（2つのフォルダに入っているチャンネルは半分ずつ）。v4.23 より前の記録は「最後に見た日時」にまとめて数えた推定です。ショートの割合は v4.24 から正確に記録します。</p>
-   </div>
-   <div id="v-log">
-    <section class="kpis" id="kpis"></section>
-
-    <section class="card">
-      <div class="card-h"><h2>日ごとの視聴時間</h2><span class="muted" id="dailyNote"></span></div>
-      <div id="daily" class="daily"></div>
-    </section>
 
     <div class="two">
       <section class="card">
@@ -70,7 +66,29 @@
         <div id="channels" class="hbars"></div>
       </section>
     </div>
+    <p class="muted hint-click">フォルダやチャンネルを押すと、下の「見た動画」をそれだけに絞り込みます（もう一度押すと解除）。</p>
 
+    <div class="two">
+      <section class="card">
+        <div class="card-h"><h2>時間をかけた動画</h2><span class="muted">視聴時間 上位5</span></div>
+        <div id="topVideos" class="hbars"></div>
+      </section>
+      <section class="card">
+        <div class="card-h"><h2>⏳ 時間を使ったチャンネル</h2><span class="muted">上位5・集中モードで隠す</span></div>
+        <div id="pTop"></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="card-h"><h2>フォルダごとの目安（1週間）と実績</h2><span class="muted" id="pGoalNote">今週・白い線が目安</span><button id="pGoalEdit" class="small">目安を変更</button></div>
+      <div id="pGoals" class="pgoals"></div>
+      <div id="pAdvice"></div>
+    </section>
+    <p class="muted pat-foot">フォルダは「いまのフォルダ分け」で集計します（2つのフォルダに入っているチャンネルは半分ずつ）。v4.23 より前の記録は「最後に見た日時」にまとめて数えた推定です。ショートの割合は v4.24 から正確に記録します。目安と実績は、期間の選択に関係なく「今週」で見ます。</p>
+
+    <h2 class="sec-h" id="s-videos">📋 見た動画</h2>
+    <details class="vsec" id="vsec">
+    <summary>見た動画の一覧を開く（検索・並べ替え・絞り込み・CSV）<span class="muted" id="vsecN"></span></summary>
     <section class="card">
       <div class="card-h">
         <h2>見た動画</h2>
@@ -84,12 +102,19 @@
           <option value="pct">見た割合が高い順</option>
           <option value="dur">動画が長い順</option>
         </select>
-        <select id="fPct" title="どれだけ見たか"><option value="0">見た割合：すべて</option><option value="25">25%以上</option><option value="50">50%以上</option><option value="90">ほぼ最後まで（90%以上）</option><option value="-25">25%未満（少しだけ）</option></select>
-        <select id="fViews" title="再生数"><option value="0">再生数：すべて</option><option value="10000">1万回以上</option><option value="100000">10万回以上</option><option value="1000000">100万回以上</option><option value="-10000">1万回未満</option></select>
-        <select id="fLen" title="動画の長さ"><option value="">長さ：すべて</option><option value="0-60">ショート（1分以内）</option><option value="60-240">4分以内</option><option value="240-1200">4〜20分</option><option value="1200-3600">20〜60分</option><option value="3600-">1時間以上</option></select>
-        <button id="fReset" class="small" hidden>絞り込みを解除</button>
+        <details class="fdet" id="fdet"><summary>絞り込み<span id="fCnt"></span></summary>
+          <div class="fdet-in">
+            <select id="fPct" title="どれだけ見たか"><option value="0">見た割合：すべて</option><option value="25">25%以上</option><option value="50">50%以上</option><option value="90">ほぼ最後まで（90%以上）</option><option value="-25">25%未満（少しだけ）</option></select>
+            <select id="fViews" title="再生数"><option value="0">再生数：すべて</option><option value="10000">1万回以上</option><option value="100000">10万回以上</option><option value="1000000">100万回以上</option><option value="-10000">1万回未満</option></select>
+            <select id="fLen" title="動画の長さ"><option value="">長さ：すべて</option><option value="0-60">ショート（1分以内）</option><option value="60-240">4分以内</option><option value="240-1200">4〜20分</option><option value="1200-3600">20〜60分</option><option value="3600-">1時間以上</option></select>
+            <button id="fReset" class="small" hidden>絞り込みを解除</button>
+          </div>
+        </details>
+        <button id="grp" class="small" title="見た動画を、日付の見出しでまとめて表示します">📅 日付でまとめる</button>
+        <button id="csv" class="small" title="いま表示している一覧（絞り込み後）を CSV で保存します">⬇ CSV</button>
         <span class="muted" id="count"></span>
       </div>
+      <div id="fchip" class="fchip" hidden></div>
       <div class="tablewrap">
         <table id="videos">
           <thead><tr>
@@ -102,12 +127,12 @@
       <button id="more" class="more" hidden>もっと見る</button>
       <p id="empty" class="empty" hidden>この期間の視聴記録はまだありません。<br>YouTubeで動画を再生すると、ここに記録されていきます。</p>
     </section>
+    </details>
 
     <footer class="foot">
       <span class="muted">記録はこのPCのブラウザ内に保存されます（最大5000本・Drive同期の設定に従う）。📱は以前 YouTube の履歴から取り込んでいた分で、見た日と「どこまで見たか」から視聴時間を推定しています（時刻は分からないため、その日の昼として表示）。低評価数は Return YouTube Dislike による推定値です。</span>
       <button id="clear" class="danger">視聴記録を消去</button>
     </footer>
-   </div>
   </main>
   <script src="shared.js"></script>
   <script src="stats.js"></script>

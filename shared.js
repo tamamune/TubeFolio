@@ -261,7 +261,7 @@ const TG = {
   AUX: {
     history: ['history', 'daily', 'watched', 'ytHistSeen', 'dayCh', 'dayHr', 'dayYt'], // 視聴記録・視聴済み（履歴の取り込み済み印も）
     later: ['later', 'laterRemoved', 'bookmarks', 'bmRemoved', 'bmFolders'],                      // 後で見る（外した記録も）
-    prefs: ['notifyFolders', 'cmt', 'assistOn', 'mgrThumbs', 'mgrThumbCount', 'statsPeriod', 'rydOn', 'ytHistOn', 'assistRules', 'recKind', 'statsTheme', 'wlSort', 'newOff', 'laterOff', 'recPrefs', 'cmOpen', 'pickMode', 'notifyRules', 'focus', 'folderGoals', 'sleepWin', 'cchap', 'px', 'folderRates', 'chSet', 'freeMin', 'viewCap', 'statsPat', 'laterOpen', 'laterOrder', 'fOpen', 'recAlgo', 'hideMembers', 'bmClosed', 'statsView', 'sPeriod', 'sAfter', 'sBefore', 'sSort', 'prefsAt'] // その他の設定（prefsAt＝最後に変えた時刻）
+    prefs: ['notifyFolders', 'cmt', 'assistOn', 'mgrThumbs', 'mgrThumbCount', 'statsPeriod', 'rydOn', 'ytHistOn', 'assistRules', 'recKind', 'statsTheme', 'wlSort', 'newOff', 'laterOff', 'recPrefs', 'cmOpen', 'pickMode', 'notifyRules', 'focus', 'folderGoals', 'sleepWin', 'cchap', 'px', 'folderRates', 'chSet', 'freeMin', 'viewCap', 'statsPat', 'laterOpen', 'laterOrder', 'fOpen', 'recAlgo', 'hideMembers', 'bmClosed', 'statsView', 'statsGroup', 'sPeriod', 'sAfter', 'sBefore', 'sSort', 'prefsAt'] // その他の設定（prefsAt＝最後に変えた時刻）
   },
 
   // opts: { meta, history, later, prefs }（省略時はすべて含める）

@@ -1,4 +1,4 @@
-// 視聴パターン（視聴記録画面のタブ）
+// 視聴パターン（視聴記録画面の「全体」「内訳」。期間は stats.js の期間ボタンと共通）
 //   dayCh: { 'YYYY-MM-DD': { チャンネルキー: 秒 } }
 //   dayHr: { 'YYYY-MM-DD': { 0〜23: 秒, f: 集中モードの時間帯の秒, x: そのうち見えなくしたフォルダの秒 } }
 //   v4.23 より前の日は history の「最後に見た日時」から推定する
@@ -9,7 +9,7 @@
   const NONE = { id: '__none', name: '未分類', color: '#8a8a8a' };
   const OTHER = { id: '__other', name: '登録外・おすすめ', color: '#5c5c5c' };
   const MORE = { id: '__more', name: 'その他のフォルダ', color: '#b0b0b0' };
-  let P = 'w0', D = null, editGoals = false;
+  let P = 7, D = null, editGoals = false, pending;
 
   const fmt = sec => {
     sec = Math.round(sec || 0);
@@ -33,7 +33,6 @@
       TG.load(),
       chrome.storage.local.get(['history', 'daily', 'dayCh', 'dayHr', 'dayYt', 'folderGoals', 'statsPat', 'focus', 'sleepWin'])
     ]);
-    P = st.statsPat || P;
     D = { ...d, history: st.history || {}, daily: st.daily || {}, dayCh: st.dayCh || {}, dayHr: st.dayHr || {}, dayYt: st.dayYt || {}, sleep: { on: true, from: '23:00', to: '07:00', ...(st.sleepWin || {}) }, goals: st.folderGoals || {}, focus: { ...TG.FOCUS_DEF, ...(st.focus || {}) } };
     const fmap = TG.folderMap(D.channels, D.folders);
     const byName = new Map(Object.values(D.channels).map(c => [c.name, c.key]));
@@ -101,34 +100,42 @@
   // ---------- 期間 ----------
   function range(p = P) {
     const today = dayStart(Date.now());
-    if (/^w\d$/.test(p)) {
-      const s = addDays(monday(Date.now()), -7 * +p[1]);
+    if (p === 'w0' || p === 'w1') {
+      const s = addDays(monday(Date.now()), p === 'w0' ? 0 : -7);
       const cols = W.map((w, i) => { const d = addDays(s, i); return { label: w, sub: md(d), days: [d], future: d > today }; });
       return { from: s, to: addDays(s, 6), cols, weeks: 1, title: '曜日 × フォルダ' };
     }
-    if (p === '4w') {
-      const s = addDays(monday(Date.now()), -21);
-      const cols = [0, 1, 2, 3].map(i => { const a = addDays(s, i * 7); return { label: `${md(a)}〜`, days: Array.from({ length: 7 }, (_, j) => addDays(a, j)) }; });
-      return { from: s, to: addDays(s, 27), cols, weeks: 4, title: '週 × フォルダ' };
+    const n = +p;
+    if (n === 1) { // 今日
+      return { from: today, to: today, cols: [{ label: '今日', sub: md(today), days: [today] }], weeks: 1, title: '今日 × フォルダ' };
     }
+    if (n === 7) { // 直近7日：日ごと
+      const s = addDays(today, -6);
+      const cols = Array.from({ length: 7 }, (_, i) => { const d = addDays(s, i); return { label: W[(d.getDay() + 6) % 7], sub: md(d), days: [d] }; });
+      return { from: s, to: today, cols, weeks: 1, title: '日ごと × フォルダ' };
+    }
+    if (n === 30 || n === 90) { // 週ごと
+      const s = addDays(today, -(n - 1));
+      const cols = [];
+      for (let a = s; a <= today; a = addDays(a, 7)) { const days = Array.from({ length: 7 }, (_, j) => addDays(a, j)).filter(d => d <= today); cols.push({ label: `${md(a)}〜`, days }); }
+      return { from: s, to: today, cols, weeks: n / 7, title: '週ごと × フォルダ' };
+    }
+    // すべて：直近12か月を月ごとに
     const now = new Date();
-    const cols = [5, 4, 3, 2, 1, 0].map(i => {
+    const cols = Array.from({ length: 12 }, (_, k) => {
+      const i = 11 - k;
       const a = new Date(now.getFullYear(), now.getMonth() - i, 1), b = new Date(now.getFullYear(), now.getMonth() - i + 1, 0);
       const days = [];
       for (let d = a; d <= b && d <= today; d = addDays(d, 1)) days.push(d);
       return { label: `${a.getMonth() + 1}月`, days };
     });
-    const from = cols[0].days[0];
-    return { from, to: today, cols, weeks: Math.max(1, (today - from) / 864e5 / 7), title: '月 × フォルダ' };
+    const from = cols[0].days[0] || today;
+    return { from, to: today, cols, weeks: Math.max(1, (today - from) / 864e5 / 7), title: '月ごと × フォルダ' };
   }
 
-  // ---------- 描画 ----------
-  function render() {
-    document.querySelectorAll('#pPeriod button').forEach(b => b.classList.toggle('on', b.dataset.p === P));
-    const R = range();
+  // 列ごと・フォルダごとの秒（c.f / c.sum を埋めて、フォルダごとの合計を返す）
+  function colTotals(R) {
     const today = dayStart(Date.now());
-    $('#pRange').textContent = `${md(R.from)}〜${md(R.to)}`;
-    // 列ごと・フォルダごとの秒
     const tot = {};
     R.cols.forEach(c => {
       c.f = {};
@@ -136,6 +143,16 @@
       c.sum = Object.values(c.f).reduce((a, b) => a + b, 0);
       for (const [id, s] of Object.entries(c.f)) tot[id] = (tot[id] || 0) + s;
     });
+    return tot;
+  }
+
+  // ---------- 描画 ----------
+  function render() {
+    if (!D) return;
+    const R = range();
+    const today = dayStart(Date.now());
+    const pr = $('#pRange'); if (pr) pr.textContent = `${md(R.from)}〜${md(R.to)}`;
+    const tot = colTotals(R);
     // 表示するフォルダ（多い順に7つまで、残りは「その他のフォルダ」）
     let order = Object.entries(tot).filter(([, s]) => s >= 30).sort((a, b) => b[1] - a[1]).map(([id]) => id);
     const special = [NONE.id, OTHER.id];
@@ -151,45 +168,24 @@
     order = [...main, ...special.filter(id => tot[id] >= 30)];
     const total = order.reduce((a, id) => a + tot[id], 0);
     const elapsed = R.cols.flatMap(c => c.days).filter(d => d <= today);
-    // 1週あたりの平均は、記録がある最初の日から数える
-    if (R.weeks > 1) {
-      const first = elapsed.find(d => sumDay(d) > 0);
-      if (first) R.weeks = Math.max(1, Math.min(R.weeks, (Math.round((today - first) / 864e5) + 1) / 7));
-    }
 
     renderKpis(R, total, tot, order, elapsed);
     renderStack(R, order, tot, total);
     renderMix(R, total);
     renderTop(R, total);
-    renderGoals(R, tot);
+    // フォルダごとの目安と実績は、期間に関係なく「今週」で見る
+    const Rw = range('w0');
+    renderGoals(Rw, colTotals(Rw));
     renderHeat(R);
   }
 
   function renderKpis(R, total, tot, order, elapsed) {
-    const nDays = Math.max(1, elapsed.length);
-    // 比べる相手：今週は「先週の同じ曜日まで」、ほかは1つ前の同じ長さ
-    let prev = 0, prevLabel = '';
-    if (P === 'w0' || P === 'w1') {
-      const pr = range(P === 'w0' ? 'w1' : 'w2');
-      const days = P === 'w0' ? pr.cols.slice(0, nDays).flatMap(c => c.days) : pr.cols.flatMap(c => c.days);
-      prev = days.reduce((a, d) => a + sumDay(d), 0);
-      prevLabel = P === 'w0' ? '先週の同じ曜日まで' : '先々週';
-    } else {
-      const len = Math.round((dayStart(Date.now()) - R.from) / 864e5) + 1;
-      for (let i = 1; i <= len; i++) prev += sumDay(addDays(R.from, -i));
-      prevLabel = 'その前の同じ日数';
-    }
-    const diff = total - prev;
-    const best = elapsed.map(d => [d, sumDay(d)]).sort((a, b) => b[1] - a[1])[0];
     const top = order.filter(id => id !== NONE.id && id !== OTHER.id && id !== MORE.id)[0] || order[0];
     let f = 0, x = 0;
     elapsed.forEach(d => { const h = hoursOf(TG.dayKey(d.getTime())); f += h.f || 0; x += h.x || 0; });
     const usesFocus = D.focus.on || f > 0 || (D.focus.tempUntil || 0) > Date.now();
-    const per = { w0: '今週', w1: '先週', '4w': '4週間', m: '6か月' }[P];
     const card = (lb, v, s) => `<div class="kpi"><div class="lb">${lb}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
     $('#pKpis').innerHTML = [
-      card(`${per}の視聴時間`, fmt(total), prev ? `<span class="${diff > 0 ? 'up' : 'dn'}">${diff >= 0 ? '▲' : '▼'} ${prevLabel}より ${diff >= 0 ? '+' : '−'}${fmt(Math.abs(diff))}</span>` : `${prevLabel}の記録はありません`),
-      card('1日平均', fmt(total / nDays), best && best[1] ? `いちばん多い日：${md(best[0])}（${W[(best[0].getDay() + 6) % 7]}） ${fmt(best[1])}` : ''),
       card('いちばん見たフォルダ', top ? esc(infoOf(top).name) : '—', top && total ? `全体の ${Math.round((tot[top] / total) * 100)}%` : ''),
       card('🎯 集中モードの時間帯', usesFocus ? fmt(f) : '—', usesFocus ? (f ? `そのうち見えなくしたフォルダ ${fmt(x)}` : 'この期間は見ていません') : '集中モードは使っていません')
     ].join('');
@@ -263,7 +259,7 @@
   function renderGoals(R, tot) {
     const roots = D.folders.filter(f => !f.parent);
     const perWeek = id => (tot[id] || 0) / R.weeks;
-    $('#pGoalNote').textContent = R.weeks === 1 ? '白い線が目安' : '1週あたりの平均・白い線が目安';
+    $('#pGoalNote').textContent = '今週・白い線が目安';
     $('#pGoalEdit').textContent = editGoals ? '保存' : '目安を変更';
     if (editGoals) {
       $('#pGoals').innerHTML = `<p class="muted">1週間に見てもいい時間（空欄＝目安なし）</p>` + roots.map(f => `<label class="pgrow edit"><span class="n"><i style="background:${esc(f.color)}"></i>${esc(f.name)}</span>
@@ -302,7 +298,7 @@
     } else {
       const over = goals.map(f => [f, perWeek(f.id) - D.goals[f.id] * 60]).filter(([, d]) => d > 60).sort((a, b) => b[1] - a[1]);
       const under = goals.map(f => [f, D.goals[f.id] * 60 - perWeek(f.id)]).filter(([, d]) => d > 60).sort((a, b) => b[1] - a[1]);
-      const wk = R.weeks === 1 ? (P === 'w0' ? '今週' : '先週') : '1週あたり';
+      const wk = '今週';
       if (over.length) html += `<div class="pnote warn">⚠ ${over.map(([f, d]) => `「${esc(f.name)}」が${wk}の目安を ${fmt(d)}`).join('、')} 超えています。</div>`;
       else html += `<div class="pnote ok">✓ ${wk}はどのフォルダも目安の中です。</div>`;
       if (under.length && !tempOn) {
@@ -360,8 +356,6 @@
 
   // ---------- 操作 ----------
   document.addEventListener('click', async e => {
-    const pb = e.target.closest('#pPeriod button');
-    if (pb) { P = pb.dataset.p; chrome.storage.local.set({ statsPat: P }); render(); return; }
     if (e.target.closest('#pGoalEdit')) {
       if (editGoals) {
         const g = {};
@@ -416,25 +410,18 @@
     render();
   });
 
-  // ---------- タブ（記録 / 視聴パターン） ----------
-  let view = 'log';
-  async function setView(v) {
-    view = v;
-    document.querySelectorAll('#view button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
-    $('#v-pat').hidden = v !== 'pat';
-    $('#v-log').hidden = v === 'pat';
-    document.body.classList.toggle('pat', v === 'pat');
-    if (v === 'pat') { try { await load(); render(); } catch (e) { console.error(e); TG.log('視聴パターン', '表示エラー：' + (e?.stack || e), 'error'); } }
-  }
-  document.querySelectorAll('#view button').forEach(b => b.addEventListener('click', () => { chrome.storage.local.set({ statsView: b.dataset.v }); setView(b.dataset.v); }));
-  const qv = new URLSearchParams(location.search).get('view');
-  chrome.storage.local.get('statsView').then(({ statsView }) => setView(qv || statsView || 'log'));
+  // ---------- 期間は stats.js の期間ボタンと共通 ----------
+  window.TGPat = { setPeriod(p) { P = p; pending = p; if (D) render(); } };
+  (async () => {
+    try { await load(); if (pending !== undefined) P = pending; render(); }
+    catch (e) { console.error(e); TG.log('視聴パターン', '表示エラー：' + (e?.stack || e), 'error'); }
+  })();
   // 再生中の記録・フォルダ分けの変更を反映（15秒ごとにまとめて）
   let t = null;
   chrome.storage.onChanged.addListener(ch => {
-    if (view !== 'pat' || editGoals) return;
+    if (editGoals) return;
     if (!(ch.dayCh || ch.dayHr || ch.daily || ch.folders || ch.channels || ch.folderGoals || ch.focus || ch.dayYt)) return;
     clearTimeout(t);
-    t = setTimeout(async () => { await load(); render(); }, ch.focus || ch.folderGoals ? 300 : 15000);
+    t = setTimeout(async () => { const p = P; await load(); P = p; render(); }, ch.focus || ch.folderGoals ? 300 : 15000);
   });
 })();

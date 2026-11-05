@@ -1091,3 +1091,4 @@ html.tg-tbm .tg-c-btn.tg-c-inbar, html.tg-tbm .tg-px-tool, html.tg-tbm .tg-px-su
 .tg-c-h { display: flex; align-items: center; justify-content: space-between; font-weight: 700; margin-bottom: 4px; }
 #tg-tools .tg-origdesc > summary { display: none; }
 #tg-tools .tg-origdesc > div { white-space: pre-wrap; max-height: 260px; overflow: auto; font-size: 12px; line-height: 1.6; }
+.tg-tb-grid .tg-tb-it { height: 70px; box-sizing: border-box; justify-content: center; padding: 6px 4px; }
