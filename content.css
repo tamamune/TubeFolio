@@ -693,6 +693,8 @@ html[dark] .tg-sg { background: #3ea6ff; color: #0f0f0f; }
 .tg-vcap { gap: 4px; }
 .tg-vcap select { border: none; background: transparent; color: var(--tg-fg); font: inherit; cursor: pointer; }
 .tg-vcap select option { background: #fff; color: #0f0f0f; }
+.tg-vcap input[type="date"] { border: none; background: transparent; color: var(--tg-fg); font: inherit; cursor: pointer; color-scheme: light dark; }
+html[dark] .tg-vcap input[type="date"] { color-scheme: dark; }
 html[dark] .tg-vcap select option { background: #282828; color: #f1f1f1; }
 .tg-tagpref small { opacity: .6; margin-left: 4px; font-size: 11px; }
 /* 🧭 少しズレた関連 */
@@ -1021,3 +1023,23 @@ html:not([dark]) #tg-plpop button { color: #0f0f0f; }
 
 /* チャンネルのページ：メンバー限定の動画を隠す（右下のボタン・memhide.js） */
 html.tg-hidemem [data-tg-mem="1"] { display: none !important; }
+
+/* 後で見る・ブックマークの余白を詰める */
+.tg-sec.open > .tg-sec-h { margin-bottom: 4px; padding-bottom: 4px; }
+.tg-sec.open > .tg-sec-h .tg-free { margin-top: 0; }
+.tg-sec + .tg-sec { margin-top: 10px; padding-top: 6px; }
+.tg-grid-in { gap: 24px 16px; }
+.tg-grid:has(> .tg-bmhead) { row-gap: 0; }
+.tg-bmhead { margin-bottom: 4px; }
+.tg-bmsec:not(.closed) > .tg-bml { padding: 2px 0 8px; gap: 10px; }
+.tg-bmsh { padding: 8px 4px; }
+.tg-bmsh .tg-bmsallw { margin-left: -2px; }
+
+/* 後で見る・ブックマーク：上と各フォルダの間のすき間をさらに詰める */
+.tg-feed-status:empty { min-height: 0; margin-bottom: 0; }
+#tg-feed[data-type="later"], #tg-feed[data-type="bm"] { padding-top: 4px; }
+#tg-feed[data-type="bm"] .tg-feed-status { margin-bottom: 6px; }
+.tg-bmhead { margin-bottom: 0; }
+.tg-bmsh { padding: 6px 4px; }
+.tg-bmsec:not(.closed) > .tg-bml { padding: 0 0 4px; }
+.tg-pltools { margin: 10px 0 0; }

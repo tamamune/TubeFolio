@@ -175,7 +175,7 @@ const TGFeed = (() => {
     if (S.feedType === 'later') return 'later:' + Date.now(); // 毎回作り直す（カテゴリの切り替えも含む）
     if (S.feedType === 'bm') return 'bm:' + Date.now();
     if (S.feedType === 'new') return JSON.stringify(['new', FX.active, S.newOff, S.folders.map(f => [f.id, f.keys.length, f.parent]), Object.values(S.channels).filter(c => c.hidden).length]);
-    if (S.feedType === 'rec') return JSON.stringify(['rec', S.recMode, S.recKind, S.zeroView, !!S.noHist, S.recAlgo || 'old', S.recMode === 'search' ? TG.searchQuery(S.folders, S.sFolder, S.sText) : '', favSetOf(S).size, S.folders.map(f => [f.name, f.color, f.keys.length])]);
+    if (S.feedType === 'rec') return JSON.stringify(['rec', S.recMode, S.recKind, S.sPeriod, S.sAfter, S.sBefore, !!S.noHist, S.recAlgo || 'old', S.recMode === 'search' ? TG.searchQuery(S.folders, S.sFolder, S.sText) : '', favSetOf(S).size, S.folders.map(f => [f.name, f.color, f.keys.length])]);
     return JSON.stringify([S.activeGroup, S.feedType, targets(S).map(c => c.key), S.folders.map(f => [f.name, f.color])]);
   }
 
@@ -343,6 +343,25 @@ const TGFeed = (() => {
   chrome.storage.local.get('viewCap').then(r => { viewCap = +r.viewCap || 0; });
   const capOk = it => !(curType === 'rec' && viewCap && it.n >= viewCap);
   const visible = () => (query || (curType === 'rec' && viewCap) ? items.filter(it => matchQ(it) && capOk(it)) : items);
+  // おすすめ・検索の並び替え：''（標準）/ new（新しい順）/ low（再生数が少ない順）/ high（多い順）。賛否両論順は別（下の chaos）
+  //   無限スクロールで足されていく一覧なので、1回に描く分（スクロールの1ページ）の中で並べ替える
+  let sortMode = '';
+  chrome.storage.local.get('sSort').then(r => { sortMode = ['new', 'low', 'high'].includes(r.sSort) ? r.sSort : ''; });
+  const SORTS = {
+    new: (a, b) => (b.p || 0) - (a.p || 0),
+    low: (a, b) => (a.n ?? Infinity) - (b.n ?? Infinity),
+    high: (a, b) => (b.n ?? -1) - (a.n ?? -1)
+  };
+  const sortPage = list => (curType === 'rec' && SORTS[sortMode] && !chaosOn ? list.slice().sort(SORTS[sortMode]) : list);
+  function setSort(m) {
+    sortMode = ['new', 'low', 'high'].includes(m) ? m : '';
+    if (curType === 'rec' && !chaosOn) setQuery(query);
+  }
+  // 検索の期間 → YouTube の絞り込み（EgQI?AB ＝ 期間?・動画）
+  const PERIOD_PARAM = { h: 'EgQIARAB', d: 'EgQIAhAB', w: 'EgQIAxAB', m: 'EgQIBBAB', y: 'EgQIBRAB' };
+  const periodParam = S => PERIOD_PARAM[S.sPeriod] || undefined;
+  // 日付を指定したときは、検索語に after: before: を足す（YouTube の検索演算子）
+  const rangeText = S => S.sPeriod === 'range' ? `${S.sAfter ? ' after:' + S.sAfter : ''}${S.sBefore ? ' before:' + S.sBefore : ''}` : '';
   // 🔥 賛否両論順：Return YouTube Dislike の推定値で、低評価の割合が高い順に並べ替える
   const rydMem = new Map();
   // ---------- 🔥 賛否両論順（おすすめ）：低評価の割合が 1% 以上の動画だけを、高い順に ----------
@@ -428,7 +447,7 @@ const TGFeed = (() => {
     }
     const n = BATCHED(curType) ? PAGE : Math.max(40, (+el.style.getPropertyValue('--tg-cols') || 4) * 10);
     if (shown === 0) lastDay = '';
-    const html = vis.slice(shown, shown + n).map(it => {
+    const html = sortPage(vis.slice(shown, shown + n)).map(it => {
       let h = '';
       if (curType === 'new') { // 日付が変わるところに見出し
         const d = dayLabel(it);
@@ -752,7 +771,7 @@ const TGFeed = (() => {
           draw();
         });
       });
-      g.insertAdjacentHTML('afterbegin', '<div class="tg-pltools"><button class="tg-pladd" title="YouTube に新しい再生リスト（非公開）を作る">＋ 再生リストを作成</button></div>');
+      g.insertAdjacentHTML('beforeend', '<div class="tg-pltools"><button class="tg-pladd" title="YouTube に新しい再生リスト（非公開）を作る">＋ 再生リストを作成</button></div>');
       g.querySelector('.tg-pladd').addEventListener('click', async () => {
         const name = prompt('新しい再生リストの名前（非公開で作成）');
         if (!name?.trim()) return;
@@ -1020,8 +1039,8 @@ const TGFeed = (() => {
     };
     g.innerHTML = head + secs.map(s => `<section class="tg-bmsec ${bmClosed[s.id] ? 'closed' : ''}" data-sec="${esc(s.id)}">
       <div class="tg-bmsh" title="押すと開く／閉じる・ここへドラッグで移動"><span class="tg-bmarr">▾</span>
-        ${s.list.length ? `<label class="tg-bmsallw" title="このフォルダをすべて選ぶ"><input type="checkbox" class="tg-bmsall"></label>` : ''}
-        <span class="tg-bmsn">${s.icon} ${esc(s.name)}</span><small>${s.list.length}</small>
+        <span class="tg-bmsn">${s.icon} ${esc(s.name)}</span>
+<small>${s.list.length}</small>${s.list.length ? `<label class="tg-bmsallw" title="このフォルダをすべて選ぶ"><input type="checkbox" class="tg-bmsall"></label>` : ''}
         ${s.def ? '' : '<button class="tg-bmsbtn" data-bmfren="1" title="フォルダの名前を変える">✎</button><button class="tg-bmsbtn" data-bmfdel="1" title="フォルダを消す（中のブックマークは「ブックマーク」に戻る）">🗑</button>'}</div>
       <div class="tg-bml">${s.list.length ? s.list.map(row).join('') : '<div class="tg-bmempty">空です。ほかのブックマークをここへドラッグして入れられます。</div>'}</div></section>`).join('');
     bindBm(g);
@@ -1328,8 +1347,9 @@ const TGFeed = (() => {
   function startSearch(S, my, force) {
     const kind = S.recKind === 'short' ? 'short' : 'video';
     const q = TG.searchQuery(S.folders, S.sFolder, S.sText);
-    // ゼロビューは検索欄のキーワード・フォルダに関係なく、ランダムな言葉で「1時間以内」を検索して再生100回未満だけ残す
-    if (S.zeroView) return startZeroAny(S, my, force);
+    // ゼロビュー＝期間が「1時間以内」で、再生数が「100回未満」。キーワードもフォルダも空のときは、ランダムな言葉で探す
+    const zero = S.sPeriod === 'h' && viewCap > 0 && viewCap <= 100;
+    if (!q && zero) return startZeroAny(S, my, force);
     if (!q) {
       items = [];
       el.querySelector('.tg-grid').innerHTML = '<div class="tg-empty">上の欄にキーワードを入れるか、フォルダを選んでください。<br>フォルダを選ぶと、フォルダ名と振り分け補助のキーワード（🏷）で、登録していないチャンネルの動画を探します。</div>';
@@ -1338,7 +1358,7 @@ const TGFeed = (() => {
       rec.mode = 'end';
       return;
     }
-    const key = kind + '|' + q + (S.zeroView ? '|zero' : '');
+    const key = kind + '|' + q + '|' + (S.sPeriod || '') + rangeText(S) + (zero ? '|zero' : '');
     const fav = favSetOf(S);
     if (!force && searches.has(key) && Date.now() - searches.get(key).at < TTL) {
       rec = searches.get(key); rec.fav = fav;
@@ -1346,7 +1366,9 @@ const TGFeed = (() => {
     }
     rec = newRec('search', fav);
     rec.q = q; rec.qKind = kind; rec.mode = 'more';
-    rec.zero = !!S.zeroView; // ゼロビュー：24時間以内・再生100回未満だけ（アップロード日順で探す）
+    rec.zero = zero; // ゼロビュー：再生100回未満だけ残す
+    rec.params = periodParam(S); // 期間（YouTube の絞り込み）
+    rec.qx = rangeText(S); // 日付を指定したときの after: before:
     searches.set(key, rec);
     skeleton(0, 0);
     status(`検索中… ${q}`);
@@ -1363,7 +1385,7 @@ const TGFeed = (() => {
       return paint(rec.items, '🔭 ゼロビュー：キーワードなし');
     }
     rec = newRec('search', fav);
-    rec.q = ''; rec.qKind = kind; rec.mode = 'more'; rec.zero = true;
+    rec.q = ''; rec.qKind = kind; rec.mode = 'more'; rec.zero = true; rec.params = PERIOD_PARAM.h;
     // カメラの自動ファイル名（IMG_1234 など）は、ほとんど誰も見ていない投稿が多い。よく使われる言葉と混ぜてランダムに
     const cam = Array.from({ length: 16 }, () => `${['IMG', 'MVI', 'DSC', 'MOV', 'VID', 'PXL'][Math.floor(Math.random() * 6)]} ${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`);
     rec.words = [...cam, ...ZERO_WORDS].sort(() => Math.random() - 0.5);
@@ -1380,7 +1402,7 @@ const TGFeed = (() => {
     const short = rec.qKind === 'short';
     try {
       while (pages++ < (rec.anyQ ? 8 : 5) && added < 24 && rec.mode !== 'end') {
-        const { items: list, token } = await YTAPI.search(rec.token ? null : rec.q + (short ? ' #shorts' : ''), rec.token, ctl.signal, rec.zero ? 'EgQIARAB' : undefined);
+        const { items: list, token } = await YTAPI.search(rec.token ? null : rec.q + (rec.qx || '') + (short ? ' #shorts' : ''), rec.token, ctl.signal, rec.params);
         if (my !== run) return;
         rec.token = token;
         // キーワードなしのゼロビュー：1つの言葉を出し切ったら次の言葉へ
@@ -1397,7 +1419,8 @@ const TGFeed = (() => {
         for (const x of cand) {
           if (!x.chKey || seen.has(x.v)) continue;
           if (rec.fav.has(x.chKey) || (x.chId && rec.fav.has('channel/' + x.chId))) continue; // 登録済みは除外
-          if (rec.zero && (x.live || (x.n || 0) >= 100 || (x.p && Date.now() - x.p > 26 * 3600e3))) continue;
+          if (rec.zero && (x.live || (x.n || 0) >= 100)) continue;
+          if (rec.params === PERIOD_PARAM.h && x.p && Date.now() - x.p > 26 * 3600e3) continue;
           seen.add(x.v);
           rec.items.push({ v: x.v, t: x.t, p: x.p, n: x.n, th: x.thumb, d: x.dur || 0, live: x.live, short, w: x.w || 0, mo: x.mo || undefined, ch: { key: x.chKey, name: x.chName, unsub: true } });
           added++;
@@ -1410,7 +1433,9 @@ const TGFeed = (() => {
       rec.mode = 'end';
     } finally { rec.loading = false; }
     if (my !== run) return;
-    const msg = `${rec.zero ? '🔭 ゼロビュー（1時間以内に投稿・再生100回未満）' : '検索'}：${rec.anyQ ? 'キーワードなし' : rec.q}　${rec.items.length} 件（登録していないチャンネルのみ）${rec.mode === 'end' ? '' : '・下へスクロールで続き'}`;
+    const PN = { h: '1時間以内', d: '今日', w: '今週', m: '今月', y: '今年' };
+    const per = Object.keys(PERIOD_PARAM).find(k => PERIOD_PARAM[k] === rec.params);
+    const msg = `${rec.zero ? '🔭 ゼロビュー（再生100回未満）' : '検索'}${per ? `・${PN[per]}` : ''}${rec.qx ? `・${rec.qx.trim()}` : ''}：${rec.anyQ ? 'キーワードなし' : rec.q}${rec.items.length} 件（登録していないチャンネルのみ）${rec.mode === 'end' ? '' : '・下へスクロールで続き'}`;
     if (first) paint(rec.items, msg);
     else { items = rec.items; status(msg); afterLoad(); }
     requestAnimationFrame(() => {
@@ -1893,5 +1918,5 @@ const TGFeed = (() => {
   }
   const type = () => curType;
 
-  return { chaosSort, isChaos, setViewCap, setFocus, setQuery, TYPES, mount, refresh, signature, setCols, setWatched, setHideWatched, setHideMembers, markWatched, setLater, playable, type };
+  return { chaosSort, isChaos, setViewCap, setSort, setFocus, setQuery, TYPES, mount, refresh, signature, setCols, setWatched, setHideWatched, setHideMembers, markWatched, setLater, playable, type };
 })();

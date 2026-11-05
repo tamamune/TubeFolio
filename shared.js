@@ -212,8 +212,13 @@ const TG = {
   COLORS: ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#00acc1', '#1e88e5', '#8e24aa', '#ec407a', '#6d4c41', '#757575'],
 
   async load() {
-    let { channels, folders, groups, meta, activeGroup, feedType, cols, homeCols, homeShortCols, searchCols, searchShortCols, hideWatched, recKind, newOff, recMode, sFolder, sText, laterOff, zeroView } =
-      await chrome.storage.local.get(['channels', 'folders', 'groups', 'meta', 'activeGroup', 'feedType', 'cols', 'homeCols', 'homeShortCols', 'searchCols', 'searchShortCols', 'hideWatched', 'recKind', 'newOff', 'recMode', 'sFolder', 'sText', 'laterOff', 'zeroView']);
+    let { channels, folders, groups, meta, activeGroup, feedType, cols, homeCols, homeShortCols, searchCols, searchShortCols, hideWatched, recKind, newOff, recMode, sFolder, sText, laterOff, zeroView, sPeriod, sAfter, sBefore } =
+      await chrome.storage.local.get(['channels', 'folders', 'groups', 'meta', 'activeGroup', 'feedType', 'cols', 'homeCols', 'homeShortCols', 'searchCols', 'searchShortCols', 'hideWatched', 'recKind', 'newOff', 'recMode', 'sFolder', 'sText', 'laterOff', 'zeroView', 'sPeriod', 'sAfter', 'sBefore']);
+    // 以前の「ゼロビュー」ボタンは、期間＝1時間以内＋再生数＝100回未満に統合した
+    if (zeroView) {
+      sPeriod = 'h';
+      await chrome.storage.local.set({ sPeriod: 'h', viewCap: 100, zeroView: false });
+    }
     if (!folders && Array.isArray(groups)) {
       channels = {};
       folders = groups.map(g => {
@@ -240,7 +245,10 @@ const TG = {
       searchShortCols: searchShortCols === null ? null : searchShortCols >= 3 && searchShortCols <= 8 ? searchShortCols : 6,
       hideWatched: !!hideWatched,
       recKind: recKind === 'short' ? 'short' : 'video',
-      recMode: recMode === 'search' ? 'search' : 'rec', sFolder: sFolder || '', sText: sText || '', zeroView: !!zeroView,
+      recMode: recMode === 'search' ? 'search' : 'rec', sFolder: sFolder || '', sText: sText || '',
+      // 検索の期間：'' ＝指定なし / h 1時間以内 / d 今日 / w 今週 / m 今月 / y 今年 / range ＝日付を指定（sAfter〜sBefore）
+      sPeriod: ['h', 'd', 'w', 'm', 'y', 'range'].includes(sPeriod) ? sPeriod : '',
+      sAfter: /^\d{4}-\d{2}-\d{2}$/.test(sAfter || '') ? sAfter : '', sBefore: /^\d{4}-\d{2}-\d{2}$/.test(sBefore || '') ? sBefore : '',
       newOff: Array.isArray(newOff) ? newOff : [], // 新着動画で隠すカテゴリ（トップのフォルダID / '__unsorted'）
       laterOff: Array.isArray(laterOff) ? laterOff : [] // 後で見るで隠すカテゴリ（＋ '__other'＝登録していないチャンネル）
     };
@@ -253,7 +261,7 @@ const TG = {
   AUX: {
     history: ['history', 'daily', 'watched', 'ytHistSeen', 'dayCh', 'dayHr', 'dayYt'], // 視聴記録・視聴済み（履歴の取り込み済み印も）
     later: ['later', 'laterRemoved', 'bookmarks', 'bmRemoved', 'bmFolders'],                      // 後で見る（外した記録も）
-    prefs: ['notifyFolders', 'cmt', 'assistOn', 'mgrThumbs', 'mgrThumbCount', 'statsPeriod', 'rydOn', 'ytHistOn', 'assistRules', 'recKind', 'statsTheme', 'wlSort', 'newOff', 'laterOff', 'recPrefs', 'cmOpen', 'pickMode', 'notifyRules', 'focus', 'folderGoals', 'sleepWin', 'cchap', 'px', 'folderRates', 'chSet', 'freeMin', 'viewCap', 'statsPat', 'laterOpen', 'laterOrder', 'fOpen', 'recAlgo', 'hideMembers', 'bmClosed', 'statsView', 'prefsAt'] // その他の設定（prefsAt＝最後に変えた時刻）
+    prefs: ['notifyFolders', 'cmt', 'assistOn', 'mgrThumbs', 'mgrThumbCount', 'statsPeriod', 'rydOn', 'ytHistOn', 'assistRules', 'recKind', 'statsTheme', 'wlSort', 'newOff', 'laterOff', 'recPrefs', 'cmOpen', 'pickMode', 'notifyRules', 'focus', 'folderGoals', 'sleepWin', 'cchap', 'px', 'folderRates', 'chSet', 'freeMin', 'viewCap', 'statsPat', 'laterOpen', 'laterOrder', 'fOpen', 'recAlgo', 'hideMembers', 'bmClosed', 'statsView', 'sPeriod', 'sAfter', 'sBefore', 'sSort', 'prefsAt'] // その他の設定（prefsAt＝最後に変えた時刻）
   },
 
   // opts: { meta, history, later, prefs }（省略時はすべて含める）
