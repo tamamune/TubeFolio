@@ -85,7 +85,10 @@ const TGManager = (() => {
     if (view === 'settings') {
       if (!host) await open('all', { light: true });
       setOnly(true);
-      return openSettings(st.setTab && st.setTab !== 'folders' ? st.setTab : 'backup');
+      // 初回は「再生・動画」、次回以降は前回開いたタブ
+      let last = st.setTab;
+      if (!last) { try { last = (await chrome.storage.local.get('setTabLast')).setTabLast; } catch { } }
+      return openSettings(last && last !== 'folders' ? last : 'cmt');
     }
     if (view === 'folders' && host) { setOnly(false); hidePop(); return; }
     if (host) return;
@@ -1623,7 +1626,8 @@ const TGManager = (() => {
   const setAnchor = () => q('.setbtn');
   function settingsShell(tab, inner) {
     st.setTab = tab;
-    const cur = SET_TOP.find(t => t[2].some(m => m[0] === tab)) || SET_TOP[0];
+    try { chrome.storage.local.set({ setTabLast: tab }); } catch { }
+    const cur =SET_TOP.find(t => t[2].some(m => m[0] === tab)) || SET_TOP[0];
     const sub = cur[2].length > 1 ? `<div class="set-sub">${cur[2].map(([k, l]) => `<button class="set-subtab ${k === tab ? 'on' : ''}" data-act="settab" data-tab="${k}">${l}</button>`).join('')}</div>` : '';
     return `<div class="set"><div class="set-tabs">${SET_TOP.map(([k, l, ms]) => `<button class="set-tab ${k === cur[0] ? 'on' : ''}" data-act="settab" data-tab="${k === cur[0] ? tab : ms[0][0]}">${l}</button>`).join('')}</div>${sub}
       <div class="set-body">${inner}</div></div>`;
@@ -1649,9 +1653,8 @@ const TGManager = (() => {
     showPop(setAnchor(), settingsShell('stats', `<div class="bk">
       <div class="bk-h">📊 視聴記録</div>
       <p class="bk-note">TubeFolio が記録した視聴時間・よく見たチャンネルやフォルダ・時間帯ごとの傾向を、別のタブで大きく表示します。</p>
-      <div class="cm-row"><span>今日の視聴</span><b>${hm(daily[day])}</b></div>
-      <div class="cm-row"><span>記録している動画</span><b>${n.toLocaleString()} 本</b></div>
-      <div class="cm-row"><span></span><button data-act="open-stats">📊 視聴記録を開く</button></div>
+      <div style="display:grid;grid-template-columns:max-content max-content;justify-content:center;column-gap:16px;row-gap:8px;margin:10px 0"><span style="text-align:right">今日の視聴</span><b>${hm(daily[day])}</b><span style="text-align:right">記録している動画</span><b>${n.toLocaleString()} 本</b></div>
+      <div class="cm-row" style="justify-content:center"><button data-act="open-stats">📊 視聴記録を開く</button></div>
     </div>`), SET_OPTS);
   }
 

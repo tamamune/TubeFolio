@@ -175,7 +175,7 @@ const TGFeed = (() => {
     if (S.feedType === 'later') return 'later:' + Date.now(); // 毎回作り直す（カテゴリの切り替えも含む）
     if (S.feedType === 'bm') return 'bm:' + Date.now();
     if (S.feedType === 'new') return JSON.stringify(['new', FX.active, S.newOff, S.folders.map(f => [f.id, f.keys.length, f.parent]), Object.values(S.channels).filter(c => c.hidden).length]);
-    if (S.feedType === 'rec') return JSON.stringify(['rec', S.recMode, S.recKind, S.sPeriod, S.sAfter, S.sBefore, !!S.noHist, S.recAlgo || 'old', S.recMode === 'search' ? TG.searchQuery(S.folders, S.sFolder, S.sText) : '', favSetOf(S).size, S.folders.map(f => [f.name, f.color, f.keys.length])]);
+    if (S.feedType === 'rec') return JSON.stringify(['rec', S.recMode, S.recKind, S.sPeriod, S.sAfter, S.sBefore, !!S.noHist, S.recAlgo || 'old', S.recMode === 'search' || S.recMode === 'fav' ? TG.searchQuery(S.folders, S.sFolder, S.sText) : '', favSetOf(S).size, S.folders.map(f => [f.name, f.color, f.keys.length])]);
     return JSON.stringify([S.activeGroup, S.feedType, targets(S).map(c => c.key), S.folders.map(f => [f.name, f.color])]);
   }
 
@@ -1346,26 +1346,27 @@ const TGFeed = (() => {
   const searches = new Map();
   function startSearch(S, my, force) {
     const kind = S.recKind === 'short' ? 'short' : 'video';
+    const favOnly = S.recMode === 'fav'; // お気に入り（登録チャンネル）の中だけで検索
     const q = TG.searchQuery(S.folders, S.sFolder, S.sText);
     // ゼロビュー＝期間が「1時間以内」で、再生数が「100回未満」。キーワードもフォルダも空のときは、ランダムな言葉で探す
     const zero = S.sPeriod === 'h' && viewCap > 0 && viewCap <= 100;
-    if (!q && zero) return startZeroAny(S, my, force);
+    if (!q && zero) return startZeroAny(S, my, force, favOnly);
     if (!q) {
       items = [];
-      el.querySelector('.tg-grid').innerHTML = '<div class="tg-empty">上の欄にキーワードを入れるか、フォルダを選んでください。<br>フォルダを選ぶと、フォルダ名と振り分け補助のキーワード（🏷）で、登録していないチャンネルの動画を探します。</div>';
+      el.querySelector('.tg-grid').innerHTML = `<div class="tg-empty">上の欄にキーワードを入れるか、フォルダを選んでください。<br>フォルダを選ぶと、フォルダ名と振り分け補助のキーワード（🏷）で、${favOnly ? '登録しているチャンネル' : '登録していないチャンネル'}の動画を探します。</div>`;
       status('');
       rec = newRec('search');
       rec.mode = 'end';
       return;
     }
-    const key = kind + '|' + q + '|' + (S.sPeriod || '') + rangeText(S) + (zero ? '|zero' : '');
+    const key = kind + '|' + q + '|' + (S.sPeriod || '') + rangeText(S) + (zero ? '|zero' : '') + (favOnly ? '|fav' : '');
     const fav = favSetOf(S);
     if (!force && searches.has(key) && Date.now() - searches.get(key).at < TTL) {
       rec = searches.get(key); rec.fav = fav;
       return paint(rec.items, `検索：${q}`);
     }
     rec = newRec('search', fav);
-    rec.q = q; rec.qKind = kind; rec.mode = 'more';
+    rec.q = q; rec.qKind = kind; rec.mode = 'more'; rec.favOnly = favOnly;
     rec.zero = zero; // ゼロビュー：再生100回未満だけ残す
     rec.params = periodParam(S); // 期間（YouTube の絞り込み）
     rec.qx = rangeText(S); // 日付を指定したときの after: before:
@@ -1375,9 +1376,9 @@ const TGFeed = (() => {
     return loadSearch(my, true);
   }
   const ZERO_WORDS = ['の', '今日', 'vlog', '日常', 'ゲーム', '実況', '料理', '猫', '犬', '旅行', '雑談', '歌ってみた', '弾いてみた', 'test', 'live', 'game', 'music', 'japan', 'cover', 'daily', '2026', 'a', 'e', 'i'];
-  function startZeroAny(S, my, force) {
+  function startZeroAny(S, my, force, favOnly) {
     const kind = S.recKind === 'short' ? 'short' : 'video';
-    const key = kind + '||zero-any';
+    const key = kind + '||zero-any' + (favOnly ? '|fav' : '');
     if (force) searches.delete(key); // 押し直したら別のランダムで
     const fav = favSetOf(S);
     if (!force && searches.has(key) && Date.now() - searches.get(key).at < TTL) {
@@ -1385,7 +1386,7 @@ const TGFeed = (() => {
       return paint(rec.items, '🔭 ゼロビュー：キーワードなし');
     }
     rec = newRec('search', fav);
-    rec.q = ''; rec.qKind = kind; rec.mode = 'more'; rec.zero = true; rec.params = PERIOD_PARAM.h;
+    rec.q = ''; rec.qKind = kind; rec.mode = 'more'; rec.favOnly = !!favOnly; rec.zero = true; rec.params = PERIOD_PARAM.h;
     // カメラの自動ファイル名（IMG_1234 など）は、ほとんど誰も見ていない投稿が多い。よく使われる言葉と混ぜてランダムに
     const cam = Array.from({ length: 16 }, () => `${['IMG', 'MVI', 'DSC', 'MOV', 'VID', 'PXL'][Math.floor(Math.random() * 6)]} ${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`);
     rec.words = [...cam, ...ZERO_WORDS].sort(() => Math.random() - 0.5);
@@ -1418,11 +1419,12 @@ const TGFeed = (() => {
         if (my !== run) return;
         for (const x of cand) {
           if (!x.chKey || seen.has(x.v)) continue;
-          if (rec.fav.has(x.chKey) || (x.chId && rec.fav.has('channel/' + x.chId))) continue; // 登録済みは除外
+          const isFav = rec.fav.has(x.chKey) || (x.chId && rec.fav.has('channel/' + x.chId));
+          if (rec.favOnly ? !isFav : isFav) continue; // 通常は登録済みを除外、「お気に入りから検索」は登録済みだけ残す
           if (rec.zero && (x.live || (x.n || 0) >= 100)) continue;
           if (rec.params === PERIOD_PARAM.h && x.p && Date.now() - x.p > 26 * 3600e3) continue;
           seen.add(x.v);
-          rec.items.push({ v: x.v, t: x.t, p: x.p, n: x.n, th: x.thumb, d: x.dur || 0, live: x.live, short, w: x.w || 0, mo: x.mo || undefined, ch: { key: x.chKey, name: x.chName, unsub: true } });
+          rec.items.push({ v: x.v, t: x.t, p: x.p, n: x.n, th: x.thumb, d: x.dur || 0, live: x.live, short, w: x.w || 0, mo: x.mo || undefined, ch: { key: x.chKey, name: x.chName, unsub: !rec.favOnly } });
           added++;
         }
         if (first) status(`検索中… ${rec.items.length} 件`);
@@ -1435,14 +1437,14 @@ const TGFeed = (() => {
     if (my !== run) return;
     const PN = { h: '1時間以内', d: '今日', w: '今週', m: '今月', y: '今年' };
     const per = Object.keys(PERIOD_PARAM).find(k => PERIOD_PARAM[k] === rec.params);
-    const msg = `${rec.zero ? '🔭 ゼロビュー（再生100回未満）' : '検索'}${per ? `・${PN[per]}` : ''}${rec.qx ? `・${rec.qx.trim()}` : ''}：${rec.anyQ ? 'キーワードなし' : rec.q}${rec.items.length} 件（登録していないチャンネルのみ）${rec.mode === 'end' ? '' : '・下へスクロールで続き'}`;
+    const msg = `${rec.zero ? '🔭 ゼロビュー（再生100回未満）' : '検索'}${per ? `・${PN[per]}` : ''}${rec.qx ? `・${rec.qx.trim()}` : ''}：${rec.anyQ ? 'キーワードなし' : rec.q}${rec.items.length} 件（${rec.favOnly ? '登録チャンネルのみ' : '登録していないチャンネルのみ'}）${rec.mode === 'end' ? '' : '・下へスクロールで続き'}`;
     if (first) paint(rec.items, msg);
     else { items = rec.items; status(msg); afterLoad(); }
     requestAnimationFrame(() => {
       const r = el.querySelector('.tg-more')?.getBoundingClientRect();
       if (r && r.top < innerHeight + 800 && recHasMore() && my === run) more();
     });
-    if (first && !rec.items.length) el.querySelector('.tg-grid').innerHTML = '<div class="tg-empty">登録していないチャンネルの動画は見つかりませんでした。キーワードを変えてみてください。</div>';
+    if (first && !rec.items.length) el.querySelector('.tg-grid').innerHTML = `<div class="tg-empty">${rec.favOnly ? '登録チャンネルの動画' : '登録していないチャンネルの動画'}は見つかりませんでした。キーワードを変えてみてください。</div>`;
   }
 
   // まだ続きがあるか（動画＝ホームの続き、ショート＝ホームの棚→ショートの連続再生の流れ）
@@ -1924,7 +1926,7 @@ const TGFeed = (() => {
     if (curType === 'bm') return paintBm(S);
     if (curType === 'new') return paintNew(S, my, force);
     if (curType === 'rec') {
-      if (S.recMode === 'search') return startSearch(S, my, force);
+      if (S.recMode === 'search' || S.recMode === 'fav') return startSearch(S, my, force);
       const kind = S.recKind === 'short' ? 'short' : 'video';
       rec = recs[kind];
       rec.fav = favSetOf(S);

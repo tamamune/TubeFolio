@@ -245,7 +245,7 @@ const TG = {
       searchShortCols: searchShortCols === null ? null : searchShortCols >= 3 && searchShortCols <= 8 ? searchShortCols : 6,
       hideWatched: !!hideWatched,
       recKind: recKind === 'short' ? 'short' : 'video',
-      recMode: recMode === 'search' ? 'search' : 'rec', sFolder: sFolder || '', sText: sText || '',
+      recMode: recMode === 'search' || recMode === 'fav' ? recMode : 'rec', sFolder: sFolder || '', sText: sText || '',
       // 検索の期間：'' ＝指定なし / h 1時間以内 / d 今日 / w 今週 / m 今月 / y 今年 / range ＝日付を指定（sAfter〜sBefore）
       sPeriod: ['h', 'd', 'w', 'm', 'y', 'range'].includes(sPeriod) ? sPeriod : '',
       sAfter: /^\d{4}-\d{2}-\d{2}$/.test(sAfter || '') ? sAfter : '', sBefore: /^\d{4}-\d{2}-\d{2}$/.test(sBefore || '') ? sBefore : '',
