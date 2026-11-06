@@ -2526,7 +2526,7 @@
   //   embed_rules.json で youtube.com 以外の Referer を付けてエラー 152／153 を避ける）
   let fpTimer = 0, fpThumb = null, fpBoardEl = null, fpBoardT = 0, fpTune = 0, fpCur = null;
   let fpEmbedBad = 0; // 続けて失敗したら、しばらくは埋め込みを試さない
-  const FP_SEL = '.tg-card .tg-thumb, .tg-bmth';
+  const FP_SEL = '.tg-card .tg-thumb, .tg-bmth, #tg-tv .tv-t'; // #tg-tv＝急上昇動画のパネル
   const fpLog = msg => { try { TG.log('プレビュー', msg); } catch { /* なし */ } };
   function fpStop() {
     clearTimeout(fpTimer); clearInterval(fpTune); clearInterval(fpBoardT); fpTimer = 0; fpTune = 0; fpBoardT = 0;

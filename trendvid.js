@@ -34,6 +34,15 @@
 #tg-tv .tv-t{position:relative;flex:none;width:120px;height:68px;border-radius:8px;overflow:hidden;background:#000}
 #tg-tv .tv-t img{width:100%;height:100%;object-fit:cover;display:block}
 #tg-tv .tv-t i{position:absolute;right:3px;bottom:3px;padding:1px 4px;border-radius:4px;background:#000c;color:#fff;font-style:normal;font-size:11px}
+#tg-tv .tv-t:has(.tg-fp-emb),#tg-tv .tv-t:has(.tg-fp-sb){overflow:hidden}
+#tg-tv .tv-t.tg-fp-on i,#tg-tv .tv-t.tg-fp-on .tv-wb{opacity:0}
+#tg-tv .tv-t .tv-wb{display:none;position:absolute;right:3px;top:3px;padding:1px 5px;border-radius:4px;background:rgba(0,0,0,.8);color:#fff;font-size:11px;font-weight:600;z-index:3}
+#tg-tv .tv-t .tv-bar{display:none;position:absolute;left:3px;bottom:3px;height:3px;width:calc((100% - 6px) * var(--tg-wpn,0));background:#f00;z-index:5;border-radius:0 2px 2px 0}
+#tg-tv .tv-i.tg-watched .tv-wb,#tg-tv .tv-i.tg-partial .tv-wb,#tg-tv .tv-i.tg-watched .tv-bar,#tg-tv .tv-i.tg-partial .tv-bar{display:block}
+#tg-tv .tv-i.tg-watched .tv-wb{background:#3ea6ff;color:#0f0f0f}
+#tg-tv .tv-i.tg-watched .tv-t img{filter:brightness(.45) saturate(.6)}
+#tg-tv .tv-i.tg-watched .tv-ti{color:var(--yt-spec-text-secondary,#aaa)}
+#tg-tv .tv-i.tg-watched .tv-t i{bottom:8px}
 #tg-tv .tv-b{flex:1;min-width:0}
 #tg-tv .tv-b span{display:block}
 #tg-tv .tv-ti{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:13px}
@@ -84,6 +93,21 @@
     chrome.storage.local.get('later').then(r => { laterSet = new Set((r.later || []).map(x => x.v)); paintAll(); });
     chrome.storage.onChanged.addListener(ch => { if (ch.later) { laterSet = new Set((ch.later.newValue || []).map(x => x.v)); paintAll(); } });
   } catch { /* なし */ }
+  // ---- 視聴済み（TubeFolioの一覧と同じ：90%以上で薄く、途中は％とバー）----
+  const WATCHED = 90;
+  let watched = {};
+  const paintWatched = () => list.querySelectorAll('.tv-i[data-v]').forEach(a => {
+    const p = watched[a.dataset.v]?.p || 0;
+    a.classList.toggle('tg-watched', p >= WATCHED);
+    a.classList.toggle('tg-partial', p > 0 && p < WATCHED);
+    a.style.setProperty('--tg-wpn', p / 100);
+    const b = a.querySelector('.tv-wb');
+    if (b) b.textContent = p >= WATCHED ? '視聴済み' : p > 0 ? `途中 ${Math.round(p)}%` : '';
+  });
+  try {
+    chrome.storage.local.get('watched').then(r => { watched = r.watched || {}; paintWatched(); });
+    chrome.storage.onChanged.addListener(ch => { if (ch.watched) { watched = ch.watched.newValue || {}; paintWatched(); } });
+  } catch { /* なし */ }
   list.addEventListener('click', async e => {
     const b = e.target.closest('.tv-later'); if (!b) return;
     e.preventDefault(); e.stopPropagation(); // 動画のリンクを開かない
@@ -114,12 +138,13 @@
       for (const it of r.items) {
         byId.set(it.id, it);
         const a = document.createElement('a');
-        a.className = 'tv-i'; a.href = '/watch?v=' + it.id;
-        a.innerHTML = `<span class="tv-r ${it.rank <= 3 ? 'top' : ''}">${it.rank}</span><span class="tv-t"><img src="https://i.ytimg.com/vi/${esc(it.id)}/mqdefault.jpg" alt="" loading="lazy" referrerpolicy="no-referrer"><i>${esc(it.dur)}</i></span>`
+        a.className = 'tv-i'; a.href = '/watch?v=' + it.id; a.dataset.v = it.id;
+        a.innerHTML = `<span class="tv-r ${it.rank <= 3 ? 'top' : ''}">${it.rank}</span><span class="tv-t"><img src="https://i.ytimg.com/vi/${esc(it.id)}/mqdefault.jpg" alt="" loading="lazy" referrerpolicy="no-referrer"><i>${esc(it.dur)}</i><span class="tv-wb"></span><span class="tv-bar"></span></span>`
           + `<span class="tv-b"><span class="tv-ti">${esc(it.title)}</span><span class="tv-s">${esc(it.channel)}</span><span class="tv-s">${[it.views && `再生 ${esc(it.views)}`, it.score && `${esc(it.score)} pts`].filter(Boolean).join(' ・ ')}</span></span><button class="tv-later" data-v="${esc(it.id)}"></button>`;
         paintLater(a.querySelector('.tv-later'));
         list.appendChild(a);
       }
+      paintWatched();
       list.scrollTop = 0;
     });
   }
