@@ -629,6 +629,9 @@
       const others = tags.filter((_, k) => k !== i).slice(tagRot % 3, tagRot % 3 + 2);
       sText = `intitle:"${tags[i]}" ${others.map(t => (/\s/.test(t) ? `"${t}"` : t)).join(' | ')}`.trim();
     }
+    return applyTagText(sText);
+  }
+  async function applyTagText(sText) {
     tagsOpen = true;
     const patch = { feedType: 'rec', recMode: S.recMode === 'fav' ? 'fav' : 'search', sFolder: '', sText, recKind: 'video' };
     Object.assign(S, patch);
@@ -637,6 +640,55 @@
     if (bar) { buildBar(bar); layoutBar(); }
     window.scrollTo({ top: 0 });
     TGFeed.refresh(S, { force: true });
+  }
+
+  // ---- 再生した動画のタグを記録（playedTags: { 小文字のタグ: { t:タグ, n:何本の動画に付いていたか, at } }）----
+  //   30秒以上見た動画（ショート以外）ごとに1回。「🎲 ランダム」は、ここに溜めたタグからキーワードを作る
+  const tagRecorded = new Set(), tagSecs = {};
+  async function recordPlayedTags(id) {
+    if (!id || tagRecorded.has(id)) return;
+    tagRecorded.add(id);
+    try {
+      const o = await YTAPI.videoOwner(id);
+      const chNames = new Set(Object.values(S.channels || {}).map(c => (c.name || '').toLowerCase()));
+      const seen = new Set();
+      const { playedTags = {} } = await chrome.storage.local.get('playedTags');
+      for (let t of o?.kw || []) {
+        t = String(t).trim(); const k = t.toLowerCase();
+        if (t.length < 2 || t.length > 20 || seen.has(k) || chNames.has(k) || /^(youtube|video|動画|vlog|shorts?)$/i.test(t)) continue;
+        seen.add(k);
+        const e = playedTags[k] || { t, n: 0 };
+        if (e.ng) continue;                    // 「追加しないタグ」に入れたもの
+        if (e.x) { e.x = false; e.n = 0; }      // 一度消しただけのタグは、また見たら増やす
+        e.n++; e.at = Date.now(); playedTags[k] = e;
+      }
+      const keys = Object.keys(playedTags);
+      // 多すぎたら古いものから捨てる（自分で追加したものは残す）
+      const auto = keys.filter(k => !playedTags[k].own);
+      if (keys.length > 500) auto.sort((a, b) => playedTags[a].at - playedTags[b].at).slice(0, keys.length - 500).forEach(k => delete playedTags[k]);
+      await chrome.storage.local.set({ playedTags });
+    } catch { tagRecorded.delete(id); }
+  }
+  // 記録したタグからランダムに選んで、キーワードに入れて探す（よく出るタグほど選ばれやすい）
+  async function tagRandom() {
+    const { playedTags = {} } = await chrome.storage.local.get('playedTags');
+    const pool = Object.values(playedTags).filter(x => !x.x); // x＝設定で削除したもの
+    if (!pool.length) {
+      const st = document.querySelector('#tg-feed .tg-feed-status');
+      if (st) st.textContent = 'ランダム用のタグがありません（「設定 → 整理・通知 → ランダム」で追加できます。動画を30秒以上見ると、そのタグも溜まります）';
+      const bar0 = document.getElementById('tg-bar'); if (bar0) { buildBar(bar0); layoutBar(); }
+      return;
+    }
+    const pick = () => {
+      const total = pool.reduce((a, x) => a + x.n, 0);
+      let r = Math.random() * total, i = 0;
+      for (; i < pool.length - 1; i++) { r -= pool[i].n; if (r < 0) break; }
+      return pool.splice(i, 1)[0].t;
+    };
+    const main = pick();
+    const others = []; while (others.length < 2 && pool.length) others.push(pick());
+    const q = t => (/\s/.test(t) ? `"${t}"` : t);
+    return applyTagText(`intitle:"${main}" ${others.map(q).join(' | ')}`.trim());
   }
 
   // ---------- 🔭 ゼロビュー・🌐 他言語で検索 ----------
@@ -830,7 +882,7 @@
         ${srch ? '' : '<button class="tg-chip tg-ghost" data-reload="1">更新</button>'}</div>`;
       const filtersHtml = `<div class="tg-chips tg-sub tg-filters"><span class="tg-sub-lb">絞り込み</span>
         ${periodRow}
-        <label class="tg-chip ${zeroNow ? 'tg-focus' : 'tg-ghost'} tg-vcap" title="再生数が多い（すでに人気の）動画を隠して、埋もれた動画だけを出す。🔭 ゼロビュー＝1時間以内に投稿された、再生100回未満の動画（誰にも見つかっていない動画）">📉 再生数<select data-vcap="1">${capOpts.map(([v, l]) => `<option value="${v}" ${capSel === String(v) ? 'selected' : ''}>${l}</option>`).join('')}${srch ? `<option value="zero" ${capSel === 'zero' ? 'selected' : ''}>🔭 ゼロビュー（1時間以内・100回未満）</option>` : ''}</select></label>
+        <label class="tg-chip ${zeroNow ? 'tg-focus' : 'tg-ghost'} tg-vcap" title="再生数が多い（すでに人気の）動画を隠して、埋もれた動画だけを出す。🔭 ゼロビュー＝1時間以内に投稿された、再生100回未満の動画（誰にも見つかっていない動画）">📉 再生数<select data-vcap="1">${capOpts.map(([v, l]) => `<option value="${v}" ${capSel === String(v) ? 'selected' : ''}>${l}</option>`).join('')}${srch ? `<option value="zero" ${capSel === 'zero' ? 'selected' : ''}>🔭 ゼロビュー</option>` : ''}</select></label>
         <span class="tg-sub-lb" style="margin-left:8px">並び替え</span>
         <label class="tg-chip ${sortSel ? 'tg-focus' : 'tg-ghost'} tg-vcap" title="読み込んだ動画の並び順（下へ読み込むたびに、その分を並べ替える）。賛否両論順＝低評価の割合が 1% 以上の動画だけを高い順に（Return YouTube Dislike の推定値）">↕<select data-sort="1">${sortOpts.map(([v, l]) => `<option value="${v}" ${sortSel === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         ${srch ? `<button class="tg-chip ${opsOpen ? 'tg-focus' : 'tg-ghost'}" data-opstoggle="1" title="YouTube の検索の書き方（intitle: など）をボタンでキーワードに入れる" style="margin-left:8px">${opsOpen ? '⌨ 検索用タグを非表示' : '⌨ 検索用タグを表示'}</button>` : ''}
@@ -861,12 +913,13 @@
         searchHtml = `<div class="tg-chips tg-sub tg-search">
           <label class="tg-qbox tg-sbox"><span>🔍</span><input class="tg-sq" type="search" placeholder="キーワード（空ならフォルダのタグで探す）" value="${esc(S.sText)}"></label>
           <button class="tg-chip tg-play" data-dosearch="1">検索</button>
+          <button class="tg-chip tg-ghost" data-tagrandom="1" title="ランダムなタグを選んで、キーワードに入れて探す（タグは「設定 → 整理・通知 → ランダム」で編集。再生した動画のタグも自動で溜まります）">🎲 ランダム</button>
           <button class="tg-chip tg-ghost" data-xlang="1" title="キーワード（空なら好みのタグ）をランダムな外国語に翻訳して探す">🌐 他言語で</button>
           <span class="tg-sub-lb">フォルダ：</span>${fchips}
           ${subs ? `<div class="tg-chips tg-sub2">${subs}</div>` : ''}
           ${opsOpen ? `<div class="tg-chips tg-sub2 tg-tagpref"><span class="tg-sub-lb">⌨ 検索用タグ（押すとキーワードに入ります）：</span>${SEARCH_OPS.map(([l, , d], i) => `<button class="tg-chip" data-op="${i}" title="${esc(d)}">${esc(l)}</button>`).join('')}</div>` : ''}
           ${tagsOpen && tagPrefs?.tags?.length ? `<div class="tg-chips tg-sub2 tg-tagpref"><span class="tg-sub-lb">🏷 好みのタグ（よく見た動画から）：</span>${tagPrefs.tags.slice(0, 12).map(([t, n]) => `<button class="tg-chip" data-tagq="${esc(t)}" title="${n}本の動画に付いていたタグ。押すとタイトルにこの言葉を含む動画を探す">${esc(t)}<small>${n}</small></button>`).join('')}<button class="tg-chip tg-ghost" data-tagsearch="1" title="集計し直して別の組み合わせで探す">↻ 別の組み合わせ</button></div>` : ''}
-          <div class="tg-sq-hint">${isZeroNow() && !q ? '🔭 ゼロビュー中：キーワード・フォルダが空なので、ランダムな言葉で1時間以内・再生100回未満の動画を探しています（期間か再生数を変えると解除）' : q ? `検索語：<code>${esc(q)}${S.sPeriod === 'range' ? esc((S.sAfter ? ' after:' + S.sAfter : '') + (S.sBefore ? ' before:' + S.sBefore : '')) : ''}</code>　（フォルダ名＋振り分け補助のキーワード🏷。🏷は「フォルダ設定」で編集）` : 'キーワードを入れるか、フォルダを選んでください'}</div></div>`;
+          ${isZeroNow() && !q ? '<div class="tg-sq-hint">🔭 ゼロビュー中：キーワード・フォルダが空なので、ランダムな言葉で1時間以内・再生100回未満の動画を探しています（期間か再生数を変えると解除）</div>' : q ? '' : '<div class="tg-sq-hint">キーワードを入れるか、フォルダを選んでください</div>'}</div>`;
       }
       row2 = row1 + filtersHtml + (srch ? searchHtml : prefsHtml);
       cur = null; curName = srch ? '検索' : 'おすすめ'; totalNew = 0;
@@ -999,6 +1052,7 @@
     }
     if (b.dataset.tagsearch) { b.disabled = true; b.textContent = '🏷 集計中…'; return tagSearch(); }
     if (b.dataset.tagq) return tagSearch(b.dataset.tagq);
+    if (b.dataset.tagrandom) return tagRandom();
     if (b.dataset.xlang) return xlangSearch();
     if (b.dataset.reload) { window.scrollTo({ top: 0 }); return TGFeed.refresh(S, { force: true }); } // 更新したら一番上から
     if (b.dataset.recmode || b.dataset.discover || 'sf' in b.dataset || b.dataset.dosearch) {
@@ -2347,6 +2401,7 @@
     e.add += addSec;
     Object.assign(e, Object.fromEntries(Object.entries(m).filter(([, x]) => x !== '' && x !== 0 && x != null)));
     e.rate = m.rate; // 評価の取り消しも反映
+    if (!m.short && !tagRecorded.has(id) && ((tagSecs[id] = (tagSecs[id] || 0) + addSec) >= 30)) recordPlayedTags(id); // 30秒以上見たらタグを記録（ランダム検索用）
     if (v?.duration > 0 && isFinite(v.duration)) e.d = Math.round(v.duration);
     const day = TG.dayKey();
     hDaily[day] = (hDaily[day] || 0) + addSec;

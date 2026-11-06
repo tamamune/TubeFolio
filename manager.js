@@ -853,6 +853,56 @@ const TGManager = (() => {
     }));
     ['keydown', 'keyup', 'keypress'].forEach(t => p.addEventListener(t, e => e.stopPropagation()));
   }
+  // ---------- 「おすすめ」の🎲 ランダム：使うタグの編集 ----------
+  //   playedTags: { 小文字のタグ: { t, n:回数, at, own:自分で追加, x:削除 } }（再生した動画のタグも自動で入る）
+  async function openRandomCfg() {
+    const anchor = setAnchor();
+    const { playedTags = {} } = await chrome.storage.local.get('playedTags');
+    const rows = Object.entries(playedTags).filter(([, e]) => !e.x).sort((a, b) => (b[1].own ? 1 : 0) - (a[1].own ? 1 : 0) || b[1].n - a[1].n || b[1].at - a[1].at);
+    const ngs = Object.entries(playedTags).filter(([, e]) => e.ng).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
+    const chip = ([k, e]) => `<span class="rn-tag ${e.own ? 'own' : ''}" title="${e.own ? '自分で追加' : `${e.n}本の再生した動画に付いていたタグ`}">${esc(e.t)}${e.own ? '' : `<small>${e.n}</small>`}<button data-rn-ng="${esc(k)}" title="削除して、次回から追加しない">🚫</button><button data-rn-del="${esc(k)}" title="削除（また見た動画に付いていたら増えます）">✕</button></span>`;
+    const ngChip = ([k, e]) => `<span class="rn-tag ng">${esc(e.t)}<button data-rn-back="${esc(k)}" title="除外をやめる">↩</button></span>`;
+    showPop(anchor, settingsShell('random', `<div class="bk">
+      <div class="bk-h">🎲 ランダムで使うタグ</div>
+      <p class="bk-note">「おすすめ」の検索で「🎲 ランダム」を押すと、ここからランダムに選んで、キーワードに入れて探します（回数の多いタグほど選ばれやすい）。動画を30秒以上見ると、その動画のタグが自動で増えます。</p>
+      <div class="bk-sub">タグを追加</div>
+      <div class="bk-row"><input class="rn-in" placeholder="タグ（カンマ区切りで複数）" style="flex:1"><button class="primary" data-rn-add="1">追加</button></div>
+      <div class="bk-sub">今のタグ（${rows.length} 個）</div>
+      <div class="rn-list">${rows.map(chip).join('') || '<p class="bk-note">まだありません</p>'}</div>
+      ${rows.length ? '<div class="bk-row"><button data-rn-clear="1">自動で溜まったタグをすべて削除</button></div>' : ''}
+      <div class="bk-sub">追加しないタグ（${ngs.length} 個）</div>
+      <p class="bk-note">ここに入れたタグは、動画を見ても自動で増えません（ランダムにも使いません）。上のタグの「🚫」で移せます。</p>
+      <div class="bk-row"><input class="rn-ng-in" placeholder="追加しないタグ（カンマ区切りで複数）" style="flex:1"><button data-rn-ngadd="1">登録</button></div>
+      <div class="rn-list">${ngs.map(ngChip).join('') || '<p class="bk-note">まだありません</p>'}</div>
+    </div>`), { ...SET_OPTS, anchor });
+    const p = q('.pop');
+    const save = async fn => {
+      const { playedTags: cur = {} } = await chrome.storage.local.get('playedTags');
+      fn(cur);
+      await chrome.storage.local.set({ playedTags: cur });
+      openRandomCfg();
+    };
+    const add = () => {
+      const words = p.querySelector('.rn-in').value.split(/[,、，\n]/).map(x => x.trim()).filter(Boolean);
+      if (!words.length) return;
+      save(cur => words.forEach(t => { const k = t.toLowerCase(); cur[k] = { t, n: Math.max(3, cur[k]?.n || 0), at: Date.now(), own: true }; }));
+    };
+    p.querySelector('[data-rn-add]').addEventListener('click', add);
+    p.querySelector('.rn-in').addEventListener('keydown', e => { if (e.key === 'Enter') add(); });
+    p.querySelectorAll('[data-rn-del]').forEach(b => b.addEventListener('click', () => save(cur => { const k = b.dataset.rnDel; if (cur[k]) cur[k] = { ...cur[k], x: true, at: Date.now() }; }))); // 消した印を残す（Driveから戻ってこないように）
+    // 「追加しないタグ」へ移す／登録／戻す（ng＝自動で増やさない。x も付けてランダムから外す）
+    p.querySelectorAll('[data-rn-ng]').forEach(b => b.addEventListener('click', () => save(cur => { const k = b.dataset.rnNg; if (cur[k]) cur[k] = { t: cur[k].t, n: cur[k].n || 0, at: Date.now(), x: true, ng: true }; })));
+    p.querySelectorAll('[data-rn-back]').forEach(b => b.addEventListener('click', () => save(cur => { const k = b.dataset.rnBack; if (cur[k]) cur[k] = { t: cur[k].t, n: 0, at: Date.now(), x: true }; })));
+    const addNg = () => {
+      const words = p.querySelector('.rn-ng-in').value.split(/[,、，\n]/).map(x => x.trim()).filter(Boolean);
+      if (!words.length) return;
+      save(cur => words.forEach(t => { const k = t.toLowerCase(); cur[k] = { t, n: 0, at: Date.now(), x: true, ng: true }; }));
+    };
+    p.querySelector('[data-rn-ngadd]').addEventListener('click', addNg);
+    p.querySelector('.rn-ng-in').addEventListener('keydown', e => { if (e.key === 'Enter') addNg(); });
+    p.querySelector('[data-rn-clear]')?.addEventListener('click', () => { if (confirm('自動で溜まったタグをすべて削除しますか？（自分で追加したタグは残ります）')) save(cur => { for (const [k, e] of Object.entries(cur)) if (!e.own && !e.x) cur[k] = { ...e, x: true, at: Date.now() }; }); });
+    ['keydown', 'keyup', 'keypress'].forEach(t => p.addEventListener(t, e => e.stopPropagation()));
+  }
   function saveRules() {
     const diff = Object.fromEntries(Object.entries(st.rules).filter(([k, v]) => RULES_DEF[k] !== v));
     chrome.storage.local.set({ assistRules: diff });
@@ -1482,7 +1532,7 @@ const TGManager = (() => {
   // 上のタブは3つ。「ログ・同期」「整理・通知」は、中の小さなタブで切り替える
   const SET_TOP = [
     ['cmt', '🎬 再生・動画', [['cmt', '再生・動画']]],
-    ['org', '📂 整理・通知', [['notify', '🔔 通知'], ['rate', '🎚 再生速度'], ['focus', '🎯 集中モード'], ['assist', '🪄 振り分け']]],
+    ['org', '📂 整理・通知', [['notify', '🔔 通知'], ['rate', '🎚 再生速度'], ['focus', '🎯 集中モード'], ['assist', '🪄 振り分け'], ['random', '🎲 ランダム']]],
     ['log', '☁ ログ・同期', [['log', '📝 動作ログ'], ['stats', '📊 視聴記録'], ['backup', '☁ 同期・バックアップ']]]
   ];
   // ---------- 集中モードの設定 ----------
@@ -1636,6 +1686,7 @@ const TGManager = (() => {
   function openSettings(tab = st.setTab || 'cmt') {
     if (tab === 'folders') { setOnly(false); const p = q('.pop'); p.hidden = true; p.innerHTML = ''; st.pop = null; st.setTab = 'backup'; return; }
     if (tab === 'assist') return openAssistCfg();
+    if (tab === 'random') return openRandomCfg();
     if (tab === 'cmt') return openCommentCfg();
     if (tab === 'notify') return openNotifyCfg();
     if (tab === 'rate') return openRateCfg();
@@ -2212,6 +2263,12 @@ const TGManager = (() => {
   .kb small{color:var(--muted);font-size:11px;font-weight:400}
   .kb .dot{margin-top:0}
   .kb.none{color:var(--muted)}
+  .rn-list{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
+  .rn-tag{display:inline-flex;align-items:center;gap:6px;padding:4px 4px 4px 10px;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-size:13px}
+  .rn-tag.own{border-color:var(--accent)}
+  .rn-tag small{color:var(--muted);font-size:11px}
+  .rn-tag button{padding:0 6px;border-radius:50%;line-height:20px;background:none;border:0;color:var(--muted);cursor:pointer}
+  .rn-tag button:hover{color:var(--fg);background:var(--card)}
   .kinds{display:flex;gap:4px;align-self:flex-start;margin-left:8px}
   .kind{padding:6px 14px;border-radius:999px;font-size:12px}
   .kind.on{border-color:var(--fg);font-weight:600}

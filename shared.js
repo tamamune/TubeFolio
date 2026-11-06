@@ -259,7 +259,7 @@ const TG = {
 
   // 保存の種類（Drive・ファイル共通）
   AUX: {
-    history: ['history', 'daily', 'watched', 'ytHistSeen', 'dayCh', 'dayHr', 'dayYt'], // 視聴記録・視聴済み（履歴の取り込み済み印も）
+    history: ['history', 'daily', 'watched', 'ytHistSeen', 'dayCh', 'dayHr', 'dayYt', 'playedTags'], // 視聴記録・視聴済み（履歴の取り込み済み印・再生した動画のタグも）
     later: ['later', 'laterRemoved', 'bookmarks', 'bmRemoved', 'bmFolders'],                      // 後で見る（外した記録も）
     prefs: ['notifyFolders', 'cmt', 'assistOn', 'mgrThumbs', 'mgrThumbCount', 'statsPeriod', 'rydOn', 'ytHistOn', 'assistRules', 'recKind', 'statsTheme', 'wlSort', 'newOff', 'laterOff', 'recPrefs', 'cmOpen', 'pickMode', 'notifyRules', 'focus', 'folderGoals', 'sleepWin', 'cchap', 'px', 'folderRates', 'chSet', 'freeMin', 'viewCap', 'statsPat', 'laterOpen', 'laterOrder', 'fOpen', 'recAlgo', 'hideMembers', 'bmClosed', 'statsView', 'statsGroup', 'sPeriod', 'sAfter', 'sBefore', 'sSort', 'prefsAt'] // その他の設定（prefsAt＝最後に変えた時刻）
   },
@@ -317,6 +317,19 @@ const TG = {
           for (const [k, sec] of Object.entries(o || {})) t[k] = Math.max(t[k] || 0, sec);
         }
         set[key] = out;
+      }
+      // 再生した動画のタグ：両方を合わせる（回数・時刻は大きいほう）。多すぎたら古いものから捨てる
+      if (h.playedTags) {
+        const out = { ...(L.playedTags || {}) };
+        for (const [k, r] of Object.entries(h.playedTags)) {
+          const l = out[k];
+          // 回数・時刻は大きいほう。削除（x）・自分で追加（own）の印は、新しく変えたほうに合わせる
+          const nw = !l || (r.at || 0) > (l.at || 0) ? r : l;
+          out[k] = l ? { t: l.t || r.t, n: Math.max(l.n || 0, r.n || 0), at: Math.max(l.at || 0, r.at || 0), ...(nw.x ? { x: true } : {}), ...(nw.own ? { own: true } : {}), ...(nw.ng ? { ng: true } : {}) } : r;
+        }
+        const keys = Object.keys(out);
+        if (keys.length > 500) keys.sort((a, b) => (out[a].at || 0) - (out[b].at || 0)).slice(0, keys.length - 500).forEach(k => delete out[k]);
+        set.playedTags = out;
       }
       if (h.ytHistSeen) set.ytHistSeen = { ...(L.ytHistSeen || {}), ...h.ytHistSeen };
       if (h.watched) {
