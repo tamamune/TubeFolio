@@ -259,9 +259,27 @@
     });
   }
 
+  // サイドバーの「ショート」の下に、YouTube ミュージックのチャート（charts.youtube.com）へのリンク。別タブで開く（YouTube の中には埋め込めない）
+  function placeChartsLink(sections) {
+    const shorts = [...sections.querySelectorAll('ytd-guide-entry-renderer')].find(e => { const a = e.querySelector('a'); return a && (/^\/shorts/.test(a.getAttribute('href') || '') || /^(ショート|Shorts)$/.test(a.getAttribute('title') || '')); }); // ショートの項目は href が無いので、名前でも探す
+    if (!shorts) return;
+    let a = document.getElementById('tg-charts');
+    if (!a) {
+      a = document.createElement('a');
+      a.id = 'tg-charts';
+      a.href = 'https://charts.youtube.com/jp';
+      a.target = '_blank'; a.rel = 'noopener';
+      a.title = 'YouTube チャート（急上昇・人気の動画やアーティストのランキング）を新しいタブで開く';
+      a.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 9h3v10H5V9zm5.5-5h3v15h-3V4zM16 13h3v6h-3v-6z"/></svg><span>チャート</span>';
+      a.addEventListener('click', e => e.stopPropagation());
+    }
+    if (a.previousElementSibling !== shorts) shorts.after(a);
+  }
+
   function renderGuide(force) {
     const sections = document.querySelector('ytd-guide-renderer #sections');
     if (!sections) return;
+    placeChartsLink(sections);
     const secs = [...sections.children].filter(s => s.matches('ytd-guide-section-renderer'));
     const subs =
       secs.find(s => s.querySelector('a[href^="/@"], a[href^="/channel/"]')) ||

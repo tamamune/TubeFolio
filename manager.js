@@ -1768,7 +1768,7 @@ const TGManager = (() => {
     const chList = [...chRows.values()].map(({ name, c, keys }) => `<div class="cm-row px-chrow"><span>${esc(name)}<em class="px-em">${[c.s > 0 ? `冒頭 ${c.s}秒` : '', c.e > 0 ? `最後 ${c.e}秒` : '', c.mid ? 'サムネ：途中の画面' : ''].filter(Boolean).join('・')}</em></span>
       <button class="icon" data-act="chset-del" data-keys="${esc(keys.join('\n'))}" title="この設定を消す">✕</button></div>`).join('');
     const fopen = { on: true, type: 'new', ...((await chrome.storage.local.get('fOpen')).fOpen || {}) };
-    const px = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, adFast: true, antiTr: true, sbUndo: true, sbHl: true, sbPriv: true, sbc_sponsor: "skip", sbc_selfpromo: "skip", sbc_interaction: "skip", sbc_intro: "skip", sbc_outro: "show", sbc_preview: "show", sbc_filler: "show", sbc_music_offtopic: "show", sbc_poi_highlight: "show", speak: false, speakRate: 1.2, speakDuck: 15, speakHide: false, saver: false, bedExt: 30, exact: true, tags: true, nth: true, echo: true, toolPanel: true, tbMerge: true, hoverSound: true, hoverVol: 30, hoverFast: true, feedPreview: true, shortsTime: true, sb: true, rydWarn: true, disBadge: true, wb: true, gh: true, ghYears: 2, wiki: true, out: true, outMin: 120, outCity: '', pvMode: 'old', pvScale: 0.25, colMin: 3, colMax: 7, jaOff: true, cmtName: true, seekOp: 40, frameBtn: true, alwaysProg: false, alwaysCtl: false, sfx: true, sfx_chapter: true, sfx_next: true, sfxVol: 50, ...(xr.px || {}) };
+    const px = { seek: true, seekSec: 10, mini: true, brk: 60, bed: true, autoJa: true, adFast: true, antiTr: true, sbUndo: true, sbHl: true, sbPriv: true, sbc_sponsor: "skip", sbc_selfpromo: "skip", sbc_interaction: "skip", sbc_intro: "skip", sbc_outro: "show", sbc_preview: "show", sbc_filler: "show", sbc_music_offtopic: "show", sbc_poi_highlight: "show", speak: false, speakRate: 1.2, speakDuck: 15, speakHide: false, saver: false, bedExt: 30, exact: true, tags: true, nth: true, echo: true, toolPanel: true, tbMerge: true, hoverSound: true, hoverVol: 30, hoverFast: true, feedPreview: true, shortsTime: true, sb: true, rydWarn: true, disBadge: true, wb: true, gh: true, ghYears: 2, wiki: true, out: true, outMin: 120, outCity: '', pvMode: 'old', pvScale: 0.25, colMin: 3, colMax: 7, jaOff: true, cmtName: true, seekOp: 40, frameBtn: true, alwaysProg: false, alwaysCtl: false, trend: true, trendGo: false, trendVid: true, sfx: true, sfx_chapter: true, sfx_next: true, sfxVol: 50, ...(xr.px || {}) };
     const slp = { on: true, from: '23:00', to: '07:00', ...(xr.sleepWin || {}) };
     const pxRow = (label, key, opts) => `<div class="cm-row"><span>${label}</span><div class="cm-seg">${opts.map(([v, t]) =>
       `<button data-act="pxset" data-k="${key}" data-v="${v}" class="${String(px[key]) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</div></div>`;
@@ -1818,6 +1818,13 @@ const TGManager = (() => {
       ${pxRow('就寝時間', 'bed', [['true', 'オン'], ['false', 'オフ']])}
       ${pxRow('就寝の延長（初期の時間）', 'bedExt', [[10, '10分'], [15, '15分'], [30, '30分'], [45, '45分'], [60, '1時間'], [90, '1.5時間'], [120, '2時間']])}
       <div class="cm-row"><span>就寝時間の範囲<em class="px-em">視聴パターンの就寝時間と共通</em></span><span class="px-time"><input type="time" data-slp="from" value="${esc(slp.from)}">〜<input type="time" data-slp="to" value="${esc(slp.to)}"></span></div>
+      <div class="bk-h cm-h">🔥 急上昇ワード（Google トレンド）</div>
+      <p class="bk-note">「表示」にすると、画面の右端に「🔥 急上昇ワード」のタブが出ます。押すと、Google トレンド（日本）の急上昇ワードが右からスライドして出ます。ワードにマウスを乗せるとニュースが3件ほど出ます。ワードを押すと、TubeFolio の「おすすめ」を見ているときは TubeFolio の検索欄に、それ以外は YouTube の検索欄に入ります。</p>
+      ${pxRow('急上昇ワード', 'trend', [['true', '表示'], ['false', '非表示']])}
+      ${pxRow('ワードを押したとき', 'trendGo', [['false', '検索欄に入れるだけ'], ['true', '入れて検索まで']])}
+      <div class="bk-h cm-h">📈 急上昇動画（日本 Top 50）</div>
+      <p class="bk-note">「表示」にすると、画面の右端に「📈 急上昇動画」のタブが出ます。押すと、Top1Trend の日別ランキングが右からスライドして出ます。◀ ▶ で日付を移動できます（直近10日ほどは日付ごとの保存が無く、最新と同じ一覧になります）。動画を押すとその動画を開きます。</p>
+      ${pxRow('急上昇動画', 'trendVid', [['true', '表示'], ['false', '非表示']])}
       <div class="bk-h cm-h">📁 「フォルダ」のショートカット</div>
       <p class="bk-note">オンにすると、サイドバーの「フォルダ」という見出しの文字を押したときに、選んだ一覧をすべてのフォルダで開きます。個々のフォルダを押したときは、今までどおりそのフォルダの動画を開きます（▸ でサブフォルダ・チャンネル名の一覧）。</p>
       <div class="cm-row"><span>使う</span><div class="cm-seg">${[['true', 'オン'], ['false', 'オフ']].map(([v, t]) => `<button data-act="fopenset" data-k="on" data-v="${v}" class="${String(fopen.on) === v ? 'on' : ''}">${t}</button>`).join('')}</div></div>

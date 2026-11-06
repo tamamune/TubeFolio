@@ -9,6 +9,13 @@ html[dark] {
 }
 
 /* ===== サイドバー ===== */
+#tg-charts {
+  display: flex; align-items: center; gap: 24px; height: 40px; padding: 0 12px; margin: 0;
+  border-radius: 10px; text-decoration: none; color: var(--yt-spec-text-primary, var(--tg-fg)); font-size: 14px; line-height: 20px;
+  font-family: Roboto, Arial, "Noto Sans JP", sans-serif;
+}
+#tg-charts:hover { background: var(--yt-spec-badge-chip-background, var(--tg-chip)); }
+#tg-charts svg { width: 24px; height: 24px; fill: currentColor; flex: none; }
 #tg-guide { font-family: Roboto, Arial, "Noto Sans JP", sans-serif; }
 #tg-guide .tg-g-block { padding: 12px 0; border-bottom: 1px solid var(--tg-line); }
 #tg-guide .tg-g-title { padding: 6px 24px 6px; font-size: 16px; font-weight: 700; color: var(--tg-fg); }
