@@ -11,6 +11,7 @@
     return out;
   };
   const tick = () => {
+    if (document.hidden) return;
     try {
       for (const row of rowsIn(document)) {
         const ent = row.__data?.chartSummaryEntity || row.chartSummaryEntity || {};
@@ -24,6 +25,8 @@
       }
     } catch { /* ページの作りが変わったときは何もしない */ }
   };
-  setInterval(tick, 700);
+  setInterval(tick, 1500);
+  let t = 0; // スクロールが止まったら、すぐ書き出す（charts.js が少し後に読む）
+  addEventListener('scroll', () => { clearTimeout(t); t = setTimeout(tick, 120); }, true);
   tick();
 })();

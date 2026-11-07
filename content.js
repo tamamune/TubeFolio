@@ -570,7 +570,7 @@
     recPrefsCache = { jp: recPrefs?.jp ?? 0.9, w };
   }
   // ---------- おすすめ：再生数の上限・好みのタグで探す ----------
-  let viewCapNow = 0, tagPrefs = null, tagRot = 0, tagsOpen = false, opsOpen = false; // tagsOpen：好みのタグの一覧を出しているか
+  let viewCapNow = 0, tagPrefs = null, tagRot = 0, tagsOpen = false, opsOpen = false, foldersOpen = true; // tagsOpen：好みのタグの一覧を出しているか
   chrome.storage.local.get(['viewCap', 'tagPrefs']).then(r => { viewCapNow = +r.viewCap || 0; tagPrefs = r.tagPrefs || null; });
   // よく見たチャンネルの上位の動画から、投稿者が設定したタグを集めて数える
   async function collectTags() {
@@ -643,7 +643,7 @@
   }
 
   // ---- 再生した動画のタグを記録（playedTags: { 小文字のタグ: { t:タグ, n:何本の動画に付いていたか, at } }）----
-  //   30秒以上見た動画（ショート以外）ごとに1回。「🎲 ランダム」は、ここに溜めたタグからキーワードを作る
+  //   30秒以上見た動画（ショート以外）ごとに1回。「🎲 ランダムタグ」は、ここに溜めたタグからキーワードを作る
   const tagRecorded = new Set(), tagSecs = {};
   async function recordPlayedTags(id) {
     if (!id || tagRecorded.has(id)) return;
@@ -675,7 +675,7 @@
     const pool = Object.values(playedTags).filter(x => !x.x); // x＝設定で削除したもの
     if (!pool.length) {
       const st = document.querySelector('#tg-feed .tg-feed-status');
-      if (st) st.textContent = 'ランダム用のタグがありません（「設定 → 整理・通知 → ランダム」で追加できます。動画を30秒以上見ると、そのタグも溜まります）';
+      if (st) st.textContent = 'ランダム用のタグがありません（「設定 → 整理・通知 → ランダムタグ」で追加できます。動画を30秒以上見ると、そのタグも溜まります）';
       const bar0 = document.getElementById('tg-bar'); if (bar0) { buildBar(bar0); layoutBar(); }
       return;
     }
@@ -885,8 +885,9 @@
         <label class="tg-chip ${zeroNow ? 'tg-focus' : 'tg-ghost'} tg-vcap" title="再生数が多い（すでに人気の）動画を隠して、埋もれた動画だけを出す。🔭 ゼロビュー＝1時間以内に投稿された、再生100回未満の動画（誰にも見つかっていない動画）">📉 再生数<select data-vcap="1">${capOpts.map(([v, l]) => `<option value="${v}" ${capSel === String(v) ? 'selected' : ''}>${l}</option>`).join('')}${srch ? `<option value="zero" ${capSel === 'zero' ? 'selected' : ''}>🔭 ゼロビュー</option>` : ''}</select></label>
         <span class="tg-sub-lb" style="margin-left:8px">並び替え</span>
         <label class="tg-chip ${sortSel ? 'tg-focus' : 'tg-ghost'} tg-vcap" title="読み込んだ動画の並び順（下へ読み込むたびに、その分を並べ替える）。賛否両論順＝低評価の割合が 1% 以上の動画だけを高い順に（Return YouTube Dislike の推定値）">↕<select data-sort="1">${sortOpts.map(([v, l]) => `<option value="${v}" ${sortSel === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-        ${srch ? `<button class="tg-chip ${opsOpen ? 'tg-focus' : 'tg-ghost'}" data-opstoggle="1" title="YouTube の検索の書き方（intitle: など）をボタンでキーワードに入れる" style="margin-left:8px">${opsOpen ? '⌨ 検索用タグを非表示' : '⌨ 検索用タグを表示'}</button>` : ''}
-        ${srch ? `<button class="tg-chip ${tagsOpen ? 'tg-focus' : 'tg-ghost'}" data-tagtoggle="1" title="よく見たチャンネルの動画のタグを集計して、${S.recMode === 'fav' ? '好みのタグで探す' : 'まだ登録していないチャンネルを探す'}（もう一度押すとタグを隠す）" style="margin-left:4px">${tagsOpen ? '🏷 好みのタグを隠す' : '🏷 好みのタグで探す'}</button>` : ''}
+        ${srch ? `<button class="tg-chip ${foldersOpen ? 'tg-focus' : 'tg-ghost'}" data-fotoggle="1" title="検索用のフォルダの一覧を表示・非表示（強調表示のとき表示中。選んだフォルダの指定はそのまま）" style="margin-left:8px">📁 フォルダ</button>` : ''}
+        ${srch ? `<button class="tg-chip ${opsOpen ? 'tg-focus' : 'tg-ghost'}" data-opstoggle="1" title="YouTube の検索の書き方（intitle: など）をボタンでキーワードに入れる" style="margin-left:4px">⌨ 検索用タグ</button>` : ''}
+        ${srch ? `<button class="tg-chip ${tagsOpen ? 'tg-focus' : 'tg-ghost'}" data-tagtoggle="1" title="よく見たチャンネルの動画のタグを集計して、${S.recMode === 'fav' ? '好みのタグで探す' : 'まだ登録していないチャンネルを探す'}（強調表示のとき表示中。もう一度押すと隠す）" style="margin-left:4px">🏷 好みのタグ</button><button class="tg-chip tg-ghost" data-sclear="1" title="絞り込み（期間・再生数・並び替え）・キーワード・フォルダの指定を元に戻し、フォルダの一覧・検索用タグ・好みのタグの表示も閉じる" style="margin-left:4px">✕ クリア</button>` : ''}
         <button class="tg-chip ${histOn() ? 'tg-focus' : 'tg-ghost'}" data-hist="1" title="${HIST_TITLE}" style="margin-left:auto">${histLabel()}</button></div>`;
       let prefsHtml = '', searchHtml = '';
       if (!srch && recPrefsOpen && recPrefsCache) {
@@ -913,10 +914,10 @@
         searchHtml = `<div class="tg-chips tg-sub tg-search">
           <label class="tg-qbox tg-sbox"><span>🔍</span><input class="tg-sq" type="search" placeholder="キーワード（空ならフォルダのタグで探す）" value="${esc(S.sText)}"></label>
           <button class="tg-chip tg-play" data-dosearch="1">検索</button>
-          <button class="tg-chip tg-ghost" data-tagrandom="1" title="ランダムなタグを選んで、キーワードに入れて探す（タグは「設定 → 整理・通知 → ランダム」で編集。再生した動画のタグも自動で溜まります）">🎲 ランダム</button>
+          <button class="tg-chip tg-ghost" data-tagrandom="1" title="ランダムなタグを選んで、キーワードに入れて探す（タグは「設定 → 整理・通知 → ランダムタグ」で編集。再生した動画のタグも自動で溜まります）">🎲 ランダムタグ</button>
           <button class="tg-chip tg-ghost" data-xlang="1" title="キーワード（空なら好みのタグ）をランダムな外国語に翻訳して探す">🌐 他言語で</button>
-          <span class="tg-sub-lb">フォルダ：</span>${fchips}
-          ${subs ? `<div class="tg-chips tg-sub2">${subs}</div>` : ''}
+          ${foldersOpen ? `<span class="tg-sub-lb">フォルダ：</span>${fchips}` : ''}
+          ${foldersOpen && subs ? `<div class="tg-chips tg-sub2">${subs}</div>` : ''}
           ${opsOpen ? `<div class="tg-chips tg-sub2 tg-tagpref"><span class="tg-sub-lb">⌨ 検索用タグ（押すとキーワードに入ります）：</span>${SEARCH_OPS.map(([l, , d], i) => `<button class="tg-chip" data-op="${i}" title="${esc(d)}">${esc(l)}</button>`).join('')}</div>` : ''}
           ${tagsOpen && tagPrefs?.tags?.length ? `<div class="tg-chips tg-sub2 tg-tagpref"><span class="tg-sub-lb">🏷 好みのタグ（よく見た動画から）：</span>${tagPrefs.tags.slice(0, 12).map(([t, n]) => `<button class="tg-chip" data-tagq="${esc(t)}" title="${n}本の動画に付いていたタグ。押すとタイトルにこの言葉を含む動画を探す">${esc(t)}<small>${n}</small></button>`).join('')}<button class="tg-chip tg-ghost" data-tagsearch="1" title="集計し直して別の組み合わせで探す">↻ 別の組み合わせ</button></div>` : ''}
           ${isZeroNow() && !q ? '<div class="tg-sq-hint">🔭 ゼロビュー中：キーワード・フォルダが空なので、ランダムな言葉で1時間以内・再生100回未満の動画を探しています（期間か再生数を変えると解除）</div>' : q ? '' : '<div class="tg-sq-hint">キーワードを入れるか、フォルダを選んでください</div>'}</div>`;
@@ -1039,7 +1040,15 @@
     if (b.dataset.hist) return histMenu();
     if (b.dataset.recreset) return recReset();
     if (b.dataset.op) return insertOp(+b.dataset.op);
+    if (b.dataset.fotoggle) { keepSq(); foldersOpen = !foldersOpen; buildBar(document.getElementById('tg-bar')); layoutBar(); return; }
     if (b.dataset.opstoggle) { keepSq(); opsOpen = !opsOpen; buildBar(document.getElementById('tg-bar')); layoutBar(); return; }
+    if (b.dataset.sclear) { // 絞り込み・キーワード・フォルダを、すべて初期の状態へ
+      foldersOpen = false; opsOpen = false; tagsOpen = false; // フォルダの一覧・検索用タグ・好みのタグの表示も閉じる
+      viewCapNow = 0; chrome.storage.local.set({ viewCap: 0 }); TGFeed.setViewCap(0);
+      if (TGFeed.isChaos()) TGFeed.chaosSort();
+      sortNow = ''; chrome.storage.local.set({ sSort: '' }); TGFeed.setSort('');
+      return searchPatch({ sPeriod: '', sAfter: '', sBefore: '', sText: '', sFolder: '' });
+    }
     if (b.dataset.tagtoggle) { // 表示・非表示だけ。キーワードや検索結果は変えない
       keepSq();
       if (!tagsOpen && (!tagPrefs?.tags?.length || Date.now() - tagPrefs.at > 864e5)) {

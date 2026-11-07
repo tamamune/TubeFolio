@@ -3,7 +3,6 @@
 //   再生リストの読み込み・追加は、開いている YouTube（www.youtube.com）のタブが行う（background.js が仲介）
 (() => {
   const BTN = 'tg-chart-add';
-  document.documentElement.dataset.tgCharts = 'start';
   // 拡張機能のスクリプトからは e.shadowRoot が見えないことがあるので、専用の方法（chrome.dom）を先に使う
   const shOf = e => { try { return chrome.dom?.openOrClosedShadowRoot?.(e) || e.shadowRoot || null; } catch { return e.shadowRoot || null; } };
   const rowsIn = (root, out = []) => {
@@ -14,25 +13,9 @@
     });
     return out;
   };
-  // サムネの URL（i.ytimg.com/vi/<ID>/… または vi_webp/<ID>/…）から動画IDを取る
-  const ID_RE = /\/vi(?:_webp)?\/([\w-]{11})(?:\/|$|\?)/;
-  const vidOf = row => {
-    const a = row.getAttribute('data-tg-vid'); // ページ側（chartmain.js）が書き出したもの
-    if (a) return a;
-    const sr = shOf(row);
-    for (const im of sr?.querySelectorAll('img') || []) {
-      for (const u of [im.currentSrc, im.src, im.getAttribute('src'), im.getAttribute('srcset')]) {
-        const m = (u || '').match(ID_RE);
-        if (m) return m[1];
-      }
-    }
-    // 画像が背景で指定されている場合
-    for (const el of sr?.querySelectorAll('[style*="url("]') || []) {
-      const m = (el.getAttribute('style') || '').match(ID_RE);
-      if (m) return m[1];
-    }
-    return '';
-  };
+  // 動画ID・曲名は、ページ側（chartmain.js）が行の属性に書き出したものを使う
+  const vidOf = row => row.getAttribute('data-tg-vid') || '';
+
   // 追加した動画の記録：{ 動画ID: { ids: [再生リストID], names: [名前] } }（ブラウザに保存。ページを開き直しても残る）
   let added = {};
   try { chrome.storage.local.get('chartAdded').then(r => { added = r.chartAdded || {}; place(); }); } catch { /* なし */ }
@@ -123,49 +106,58 @@
   const btns = new Map(); // 行 → ボタン
   let rowList = [];
   function refreshRows() {
+    if (document.hidden) return;
     rowList = rowsIn(document);
-    for (const [row, b] of btns) if (!rowList.includes(row) || !row.isConnected) { b.remove(); btns.delete(row); }
-    document.documentElement.dataset.tgCharts = `on rows=${rowList.length} ids=${rowList.filter(vidOf).length} btn=${btns.size}`;
+    const live = new Set(rowList);
+    for (const [row, b] of btns) if (!live.has(row) || !row.isConnected) { b.remove(); btns.delete(row); }
     place();
   }
+  function makeBtn(row) {
+    const b = document.createElement('button');
+    b.className = 'tg-chart-ov'; b.textContent = '＋';
+    b.style.cssText = 'position:fixed;pointer-events:auto;width:32px;height:32px;padding:0;background:#3f3f3f;color:#fff;border:1px solid #666;border-radius:50%;font:20px/30px Roboto,Arial,sans-serif;cursor:pointer;opacity:.9;display:none';
+    b.addEventListener('mouseenter', () => { b.style.background = b.dataset.done ? '#43a047' : '#606060'; });
+    b.addEventListener('mouseleave', () => { b.style.background = b.dataset.done ? '#2e7d32' : '#3f3f3f'; });
+    b.addEventListener('click', e => {
+      e.stopPropagation(); e.preventDefault();
+      const rt = shOf(row)?.querySelector('.ytmc-entry-row-container')?.innerText || '';
+      const first = rt.split(String.fromCharCode(10)).map(x => x.trim()).filter(x => x && !/^[0-9]+$|^New$|^-$/.test(x))[0] || '';
+      pick(b.dataset.v, row.getAttribute('data-tg-title') || first);
+    });
+    layer.appendChild(b);
+    return b;
+  }
   function place() {
-    for (const row of rowList) {
+    const rects = rowList.map(r => r.getBoundingClientRect()); // 位置の読み取りを先にまとめる（読み書きを交互にしない）
+    rowList.forEach((row, i) => {
       const v = vidOf(row);
       let b = btns.get(row);
-      if (!v) { if (b) { b.remove(); btns.delete(row); } continue; } // 動画IDが分からない行（アーティストなど）には付けない
-      if (!b) {
-        b = document.createElement('button');
-        b.className = 'tg-chart-ov'; b.textContent = '＋'; b.title = 'この動画を再生リストに追加';
-        b.style.cssText = 'position:fixed;pointer-events:auto;width:32px;height:32px;padding:0;background:#3f3f3f;color:#fff;border:1px solid #666;border-radius:50%;font:20px/30px Roboto,Arial,sans-serif;cursor:pointer;opacity:.9;display:none';
-        b.addEventListener('mouseenter', () => { b.style.background = b.dataset.done ? '#43a047' : '#606060'; });
-        b.addEventListener('mouseleave', () => { b.style.background = b.dataset.done ? '#2e7d32' : '#3f3f3f'; });
-        b.addEventListener('click', e => {
-          e.stopPropagation(); e.preventDefault();
-          const rt = shOf(row)?.querySelector('.ytmc-entry-row-container')?.innerText || '';
-          const first = rt.split(String.fromCharCode(10)).map(x => x.trim()).filter(x => x && !/^[0-9]+$|^New$|^-$/.test(x))[0] || '';
-          pick(b.dataset.v, row.getAttribute('data-tg-title') || first);
-        });
-        layer.appendChild(b); btns.set(row, b);
+      if (!v) { if (b) { b.remove(); btns.delete(row); } return; } // 動画IDが分からない行（アーティストなど）には付けない
+      if (!b) { b = makeBtn(row); btns.set(row, b); }
+      const a = added[v], mark = a ? '✓' : '＋';
+      if (b.dataset.v !== v || (b.dataset.done === '1') !== !!a) {
+        b.dataset.v = v; b.dataset.done = a ? '1' : '';
+        b.textContent = mark;
+        b.style.background = a ? '#2e7d32' : '#3f3f3f';
+        b.title = a ? `追加済み：${a.names.join('、')}（押すと別の再生リストにも追加できます）` : 'この動画を再生リストに追加';
       }
-      b.dataset.v = v;
-      const a = added[v];
-      const mark = a ? '✓' : '＋';
-      if (b.textContent !== mark) b.textContent = mark;
-      b.style.background = a ? '#2e7d32' : '#3f3f3f'; b.dataset.done = a ? '1' : '';
-      b.title = a ? `追加済み：${a.names.join('、')}（押すと別の再生リストにも追加できます）` : 'この動画を再生リストに追加';
-      const r = row.getBoundingClientRect();
+      const r = rects[i];
       const show = r.width > 0 && r.bottom > 0 && r.top < innerHeight;
-      b.style.display = show ? 'block' : 'none';
+      const disp = show ? 'block' : 'none';
+      if (b.style.display !== disp) b.style.display = disp;
       if (show) { b.style.left = Math.round(r.right - 156) + 'px'; b.style.top = Math.round(r.top + r.height / 2 - 16) + 'px'; }
-    }
+    });
   }
-  // スクロール・大きさの変化の間は毎フレーム位置を合わせ、行の一覧は定期的に取り直す
-  let until = 0, raf = 0;
+  // スクロール・大きさの変化の間は毎フレーム位置を合わせ、止まったら行の一覧を取り直す（仮想スクロールで行が入れ替わるため）
+  let until = 0, raf = 0, settleT = 0;
   const loop = () => { raf = 0; place(); if (performance.now() < until) raf = requestAnimationFrame(loop); };
-  const kick = () => { until = performance.now() + 400; if (!raf) raf = requestAnimationFrame(loop); };
+  const kick = () => {
+    until = performance.now() + 400;
+    if (!raf) raf = requestAnimationFrame(loop);
+    clearTimeout(settleT); settleT = setTimeout(refreshRows, 250);
+  };
   addEventListener('scroll', kick, true);
   addEventListener('resize', kick);
-  new MutationObserver(() => { clearTimeout(refreshRows.t); refreshRows.t = setTimeout(refreshRows, 300); }).observe(document.documentElement, { childList: true, subtree: true });
-  setInterval(() => { try { refreshRows(); } catch (e) { document.documentElement.dataset.tgCharts = 'ERR ' + (e && e.message); } }, 1500);
+  setInterval(refreshRows, 3000); // ページ内の切り替え（チャートの種類・日付）に追従
   refreshRows();
 })();

@@ -177,7 +177,7 @@ function pickAux(aux, s) {
 let auxDirty = false, auxT = null;
 chrome.storage.session.get('auxDirty').then(r => { auxDirty = auxDirty || !!r.auxDirty; });
 const HIST_KEYS = new Set(TG.AUX.history);
-const SOON_KEYS = new Set([...TG.AUX.later, ...TG.AUX.prefs]);
+const SOON_KEYS = new Set([...TG.AUX.later, ...TG.AUX.prefs, 'tagEditAt']); // tagEditAt＝ランダム用のタグを手で編集した印（これが変わると10秒後に保存。自動で溜まる分は30分ごと）
 async function pushIfDirty(why = '') {
   const s = await getSync();
   if (!s.auto || !s.connected || !auxDirty) return;
@@ -444,7 +444,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   if (msg?.type === 'xfetch') {
     let u;
     try { u = new URL(msg.url); } catch { reply(null); return; }
-    const OK = ['sponsor.ajay.app', 'api.github.com', 'ja.wikipedia.org', 'api.open-meteo.com', 'geocoding-api.open-meteo.com', 'ipapi.co', 'archive.org'];
+    const OK = ['sponsor.ajay.app', 'api.github.com', 'ja.wikipedia.org', 'en.wikipedia.org', 'api.open-meteo.com', 'geocoding-api.open-meteo.com', 'ipapi.co', 'archive.org'];
     if (u.protocol !== 'https:' || !OK.includes(u.hostname)) { reply(null); return; }
     fetch(u.href, { credentials: 'omit', headers: u.hostname === 'api.github.com' ? { Accept: 'application/vnd.github+json' } : {} })
       .then(r => (r.ok ? (msg.as === 'text' ? r.text() : r.json()) : (msg.st ? { _http: r.status } : null))).then(reply, () => reply(null));

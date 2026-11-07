@@ -35,8 +35,6 @@
 #tg-trend .tgt-i{display:flex;align-items:baseline;gap:10px;width:100%;padding:8px 14px;border:0;background:none;color:inherit;text-align:left;cursor:pointer;font:inherit}
 #tg-trend .tgt-i:hover{background:var(--yt-spec-badge-chip-background,#3f3f3f)}
 #tg-trend .tgt-i{align-items:center}
-#tg-trend .tgt-img{width:44px;height:44px;border-radius:8px;object-fit:cover;flex:none;background:var(--yt-spec-badge-chip-background,#3f3f3f)}
-#tg-trend .tgt-img.ph{display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--yt-spec-text-secondary,#aaa)}
 #tg-trend .tgt-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 #tg-trend .tgt-s{font-size:11px;color:var(--yt-spec-text-secondary,#aaa);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #tg-trend .tgt-s .up{color:#4caf50}

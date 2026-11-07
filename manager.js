@@ -855,16 +855,39 @@ const TGManager = (() => {
   }
   // ---------- 「おすすめ」の🎲 ランダム：使うタグの編集 ----------
   //   playedTags: { 小文字のタグ: { t, n:回数, at, own:自分で追加, x:削除 } }（再生した動画のタグも自動で入る）
+  // Wikipedia の要約を取る（日本語版 → 英語版。タグと同じ名前の記事を先に、無ければ検索の1件目）。同じタグは覚えておく
+  const wkCache = new Map();
+  async function wikiLookup(term) {
+    if (wkCache.has(term)) return wkCache.get(term);
+    const get = url => chrome.runtime.sendMessage({ type: 'xfetch', url, as: 'json' }).catch(() => null);
+    const summary = (lang, title) => get(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, '_'))}`);
+    let res = null;
+    for (const lang of ['ja', 'en']) {
+      let sum = await summary(lang, term), near = false;
+      if (!sum?.extract) {
+        const s = await get(`https://${lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(term)}&srlimit=1&format=json`);
+        const hit = s?.query?.search?.[0]?.title;
+        sum = hit ? await summary(lang, hit) : null; near = true;
+      }
+      if (sum?.extract) { res = { lang, title: sum.title || term, text: sum.extract, near }; break; }
+    }
+    if (res && res.lang !== 'ja') { // 日本語以外は日本語に翻訳する（失敗したら原文のまま）
+      const tr = await chrome.runtime.sendMessage({ type: 'translate', to: 'ja', q: res.text.slice(0, 400) }).catch(() => null);
+      if (tr) { res.orig = res.text; res.text = tr; }
+    }
+    wkCache.set(term, res);
+    return res;
+  }
   async function openRandomCfg() {
     const anchor = setAnchor();
     const { playedTags = {} } = await chrome.storage.local.get('playedTags');
     const rows = Object.entries(playedTags).filter(([, e]) => !e.x).sort((a, b) => (b[1].own ? 1 : 0) - (a[1].own ? 1 : 0) || b[1].n - a[1].n || b[1].at - a[1].at);
     const ngs = Object.entries(playedTags).filter(([, e]) => e.ng).sort((a, b) => (b[1].at || 0) - (a[1].at || 0));
-    const chip = ([k, e]) => `<span class="rn-tag ${e.own ? 'own' : ''}" title="${e.own ? '自分で追加' : `${e.n}本の再生した動画に付いていたタグ`}">${esc(e.t)}${e.own ? '' : `<small>${e.n}</small>`}<button data-rn-ng="${esc(k)}" title="削除して、次回から追加しない">🚫</button><button data-rn-del="${esc(k)}" title="削除（また見た動画に付いていたら増えます）">✕</button></span>`;
-    const ngChip = ([k, e]) => `<span class="rn-tag ng">${esc(e.t)}<button data-rn-back="${esc(k)}" title="除外をやめる">↩</button></span>`;
+    const chip = ([k, e]) => `<span class="rn-tag ${e.own ? 'own' : ''}" data-wk="${esc(e.t)}">${esc(e.t)}${e.own ? '' : `<small>${e.n}</small>`}<button data-rn-ng="${esc(k)}" title="削除して、次回から追加しない">🚫</button><button data-rn-del="${esc(k)}" title="削除（また見た動画に付いていたら増えます）">✕</button></span>`;
+    const ngChip = ([k, e]) => `<span class="rn-tag ng" data-wk="${esc(e.t)}">${esc(e.t)}<button data-rn-back="${esc(k)}" title="除外をやめる">↩</button></span>`;
     showPop(anchor, settingsShell('random', `<div class="bk">
-      <div class="bk-h">🎲 ランダムで使うタグ</div>
-      <p class="bk-note">「おすすめ」の検索で「🎲 ランダム」を押すと、ここからランダムに選んで、キーワードに入れて探します（回数の多いタグほど選ばれやすい）。動画を30秒以上見ると、その動画のタグが自動で増えます。</p>
+      <div class="bk-h">🎲 ランダムタグ</div>
+      <p class="bk-note">「おすすめ」の検索で「🎲 ランダムタグ」を押すと、ここからランダムに選んで、キーワードに入れて探します（回数の多いタグほど選ばれやすい）。動画を30秒以上見ると、その動画のタグが自動で増えます。</p>
       <div class="bk-sub">タグを追加</div>
       <div class="bk-row"><input class="rn-in" placeholder="タグ（カンマ区切りで複数）" style="flex:1"><button class="primary" data-rn-add="1">追加</button></div>
       <div class="bk-sub">今のタグ（${rows.length} 個）</div>
@@ -876,10 +899,46 @@ const TGManager = (() => {
       <div class="rn-list">${ngs.map(ngChip).join('') || '<p class="bk-note">まだありません</p>'}</div>
     </div>`), { ...SET_OPTS, anchor });
     const p = q('.pop');
+    // Wikipedia：タグをクリックで検索ページを開く／タグにマウスを乗せると要約を出す（日本語版を先に、無ければ英語版）
+    p.querySelectorAll('[data-wk]').forEach(el => el.addEventListener('click', e => {
+      if (e.target.closest('button')) return;
+      window.open(`https://ja.wikipedia.org/w/index.php?search=${encodeURIComponent(el.dataset.wk)}`, '_blank', 'noopener');
+    }));
+    let wkT = 0;
+    const wkHide = () => { clearTimeout(wkT); const t = q('.rn-wk'); if (t) t.hidden = true; };
+    p.querySelectorAll('[data-wk]').forEach(el => {
+      el.addEventListener('mouseenter', () => {
+        clearTimeout(wkT);
+        wkT = setTimeout(async () => {
+          const term = el.dataset.wk;
+          let tip = q('.rn-wk');
+          if (!tip) { tip = document.createElement('div'); tip.className = 'rn-wk'; $.appendChild(tip); }
+          tip.classList.toggle('light', !!q('.app.light'));
+          tip.textContent = '調べています…'; tip.hidden = false;
+          const place = () => {
+            const r = el.getBoundingClientRect();
+            const x = Math.min(Math.max(8, r.left), innerWidth - tip.offsetWidth - 8);
+            const y = r.bottom + 6 + tip.offsetHeight > innerHeight - 8 ? Math.max(8, r.top - tip.offsetHeight - 6) : r.bottom + 6;
+            tip.style.left = x + 'px'; tip.style.top = y + 'px';
+          };
+          place();
+          const w = await wikiLookup(term);
+          if (!el.matches(':hover')) return; // 調べている間に離れた
+          tip.textContent = '';
+          const h = document.createElement('b'); h.textContent = w ? `${w.title}${w.lang === 'en' ? '（英語版・日本語に翻訳）' : ''}` : term; tip.appendChild(h);
+          const d = document.createElement('div');
+          d.textContent = w ? (w.text.length > 220 ? w.text.slice(0, 220) + '…' : w.text) : 'Wikipedia に該当する記事が見つかりませんでした（クリックで検索ページを開けます）';
+          tip.appendChild(d);
+          if (w?.near) { const n = document.createElement('small'); n.textContent = `「${term}」に近い記事です`; tip.appendChild(n); }
+          place();
+        }, 350);
+      });
+      el.addEventListener('mouseleave', wkHide);
+    });
     const save = async fn => {
       const { playedTags: cur = {} } = await chrome.storage.local.get('playedTags');
       fn(cur);
-      await chrome.storage.local.set({ playedTags: cur });
+      await chrome.storage.local.set({ playedTags: cur, tagEditAt: Date.now() }); // 手で編集したときは、Drive へ10秒後に保存される
       openRandomCfg();
     };
     const add = () => {
@@ -1532,7 +1591,7 @@ const TGManager = (() => {
   // 上のタブは3つ。「ログ・同期」「整理・通知」は、中の小さなタブで切り替える
   const SET_TOP = [
     ['cmt', '🎬 再生・動画', [['cmt', '再生・動画']]],
-    ['org', '📂 整理・通知', [['notify', '🔔 通知'], ['rate', '🎚 再生速度'], ['focus', '🎯 集中モード'], ['assist', '🪄 振り分け'], ['random', '🎲 ランダム']]],
+    ['org', '📂 整理・通知', [['notify', '🔔 通知'], ['rate', '🎚 再生速度'], ['focus', '🎯 集中モード'], ['assist', '🪄 振り分け'], ['random', '🎲 ランダムタグ']]],
     ['log', '☁ ログ・同期', [['log', '📝 動作ログ'], ['stats', '📊 視聴記録'], ['backup', '☁ 同期・バックアップ']]]
   ];
   // ---------- 集中モードの設定 ----------
@@ -2264,8 +2323,12 @@ const TGManager = (() => {
   .kb .dot{margin-top:0}
   .kb.none{color:var(--muted)}
   .rn-list{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}
-  .rn-tag{display:inline-flex;align-items:center;gap:6px;padding:4px 4px 4px 10px;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-size:13px}
+  .rn-tag{cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:4px 4px 4px 10px;border-radius:999px;background:var(--card2);border:1px solid var(--line);font-size:13px}
   .rn-tag.own{border-color:var(--accent)}
+  .rn-wk{position:fixed;z-index:2147483647;max-width:340px;padding:8px 10px;border-radius:8px;background:#1c1c1c;color:#f1f1f1;border:1px solid #444;box-shadow:0 6px 20px #000a;font:12px/1.5 Roboto,'Noto Sans JP',Meiryo,sans-serif;pointer-events:none}
+  .rn-wk.light{background:#fff;color:#0f0f0f;border-color:#ccc}
+  .rn-wk b{display:block;margin-bottom:2px;font-size:13px}
+  .rn-wk small{display:block;margin-top:4px;color:#a3a3a3}
   .rn-tag small{color:var(--muted);font-size:11px}
   .rn-tag button{padding:0 6px;border-radius:50%;line-height:20px;background:none;border:0;color:var(--muted);cursor:pointer}
   .rn-tag button:hover{color:var(--fg);background:var(--card)}
